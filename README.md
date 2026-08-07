@@ -1,40 +1,33 @@
-# Odo Log — deployment guide
+# Bike Distance Tracker — deployment guide
 
-This folder is a complete, installable web app (PWA). No build step, no server code — just static files.
+This folder is a complete, installable web app (PWA). No build step, no server, no backend service — just static files. **GitHub Pages alone is enough to host it.**
+
+## What's in v2
+- Morning/evening odometer tracking with auto-fill (unchanged from before)
+- **Multiple bikes** — switch, add, rename, delete profiles from the top bar / Settings
+- **Fuel & Mileage** — log fill-ups, auto-calculated km/l, cost tracking
+- **Service Reminder** — set a service interval, get a due/overdue badge based on current odometer
+- **Insights & records** — longest day, longest streak, this year's total, lifetime total
+- **Light/dark theme toggle** (top-right icon)
+- **PDF export** — generates a printable summary via your browser's print dialog (Settings → Export PDF summary)
+- **Backup export/import** — still there, now includes all bikes
+
+Existing data from the older single-bike version is migrated automatically into a "My Bike" profile the first time this version loads — nothing is lost.
 
 ## Files
 - `index.html` — the app itself
 - `manifest.json` — tells the phone this is an installable app
-- `sw.js` — service worker, caches the app so it works offline after first load
+- `sw.js` — service worker, network-first so updates apply automatically
 - `icon-192.png`, `icon-512.png` — app icons
 
-## Deploy (pick one, both are free)
-
-### Option 1: Netlify (easiest)
-1. Go to https://app.netlify.com/drop
-2. Drag this whole folder onto the page
-3. Netlify gives you a live URL immediately (e.g. `https://your-app.netlify.app`)
-
-### Option 2: GitHub Pages
-1. Create a new GitHub repo, upload these files to it
-2. Go to the repo's **Settings → Pages**
-3. Set source to the `main` branch, root folder
-4. Your app will be live at `https://yourusername.github.io/your-repo-name`
-
-## Install on your phone
-1. Open the live URL in Chrome (Android) or Safari (iPhone)
-2. Android/Chrome: tap the **⋮ menu → Add to Home screen / Install app**
-3. iPhone/Safari: tap the **Share icon → Add to Home Screen**
-4. The app icon appears on your home screen and opens full-screen, like a native app
+## Deploy on GitHub Pages
+1. Push these files to your existing repo (overwrite `index.html`; the others are unchanged)
+2. Settings → Pages should already be configured from before — no changes needed there
+3. GitHub rebuilds automatically within a minute or two of every push
+4. Open the app once with internet after deploying — it self-updates and reloads
 
 ## About your data
-- Everything (readings, settings, vehicle details) is stored in the browser's local storage **on that phone only**. Nothing is uploaded anywhere.
-- Use the **Export backup** button in Settings regularly to save a `.json` copy of your data somewhere safe (email it to yourself, save to Drive, etc.)
+- Everything (readings, fuel logs, service records, vehicle details, settings) is stored in the browser's local storage **on that phone only**. Nothing is uploaded anywhere.
+- Use **Export backup** in Settings regularly to save a `.json` copy of your data somewhere safe.
 - If you ever clear your browser's site data, uninstall the app, or switch phones, use **Import backup** to restore from that file.
-
-## Updating the app after deployment
-The service worker now checks the network for a fresh copy of the page every time you open the app, and falls back to the offline cache only if there's no connection. That means:
-- Just push your changes to `index.html` (or any file) as normal — **no need to manually edit `sw.js` or bump a version number anymore.**
-- Open the app while you have internet at least once after deploying, and it'll auto-update and reload itself with the new version.
-- It still works fully offline after that first check, using whatever it last successfully loaded.
 

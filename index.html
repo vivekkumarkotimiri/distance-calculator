@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Bike Distance Tracker</title>
 <meta name="theme-color" content="#12160f" />
-<meta name="description" content="Track your bike's daily distance with morning and evening odometer readings." />
+<meta name="description" content="Track your bike's daily distance, fuel mileage, and service schedule." />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icon-192.png" />
 <link rel="apple-touch-icon" href="icon-192.png" />
@@ -24,6 +24,18 @@
     --text-dim: #93998c;
     --danger: #e2604f;
   }
+  html[data-theme="light"] {
+    --bg: #f4f1e9;
+    --panel: #ffffff;
+    --panel-line: #ded8c6;
+    --lcd-glow: #2f7a34;
+    --lcd-dim: #6c8a63;
+    --amber: #b9791e;
+    --amber-dim: #e3c99a;
+    --text: #22261d;
+    --text-dim: #6b7062;
+    --danger: #c74836;
+  }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0;
@@ -31,36 +43,43 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
+    transition: background .15s ease, color .15s ease;
   }
   .mono { font-family: "SF Mono", "Roboto Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
-  .wrap { max-width: 440px; margin: 0 auto; padding: 18px 16px 56px; }
+  .wrap { max-width: 460px; margin: 0 auto; padding: 18px 16px 56px; }
 
-  .header { display: flex; align-items: center; gap: 10px; padding: 4px 2px 18px; }
- .header-icon { width: 34px;height: 34px;flex: none;border-radius: 8px; object-fit: cover;}
-  .header h1 { font-size: 17px; letter-spacing: 0.12em; font-weight: 700; margin: 0; text-transform: uppercase; }
+  .header { display: flex; align-items: center; gap: 10px; padding: 4px 2px 14px; }
+  .header-icon { width: 34px; height: 34px; flex: none; border-radius: 8px; object-fit: cover; }
+  .header h1 { font-size: 17px; letter-spacing: 0.08em; font-weight: 700; margin: 0; }
   .header .sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+  .header-spacer { flex: 1; }
+  .icon-btn { background: var(--panel); border: 1px solid var(--panel-line); color: var(--text); width: 36px; height: 36px; border-radius: 9px; font-size: 16px; cursor: pointer; flex: none; }
+
+  .bike-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .bike-select { flex: 1; background: var(--panel); border: 1px solid var(--panel-line); color: var(--text); border-radius: 9px; padding: 10px 10px; font-size: 13px; font-weight: 600; }
+  .bike-add-btn { background: var(--panel); border: 1px solid var(--panel-line); color: var(--amber); width: 40px; border-radius: 9px; font-size: 18px; font-weight: 700; cursor: pointer; }
 
   .lcd {
-    background: linear-gradient(180deg, #283523 0%, #1e2919 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 85%, var(--lcd-glow) 15%) 0%, var(--panel) 100%);
     border: 1px solid var(--panel-line);
     border-radius: 14px;
     padding: 20px 20px 18px;
     position: relative;
     overflow: hidden;
-    box-shadow: inset 0 2px 12px rgba(0,0,0,0.35);
+    box-shadow: inset 0 2px 12px rgba(0,0,0,0.15);
   }
   .lcd-label { font-size: 10px; letter-spacing: 0.18em; color: var(--lcd-dim); text-transform: uppercase; font-weight: 700; }
-  .lcd-total { font-size: 44px; font-weight: 700; color: var(--lcd-glow); line-height: 1.05; margin: 4px 0 2px; text-shadow: 0 0 14px rgba(157,232,138,0.35); }
-  .lcd-total .unit { font-size: 16px; color: var(--lcd-dim); margin-left: 8px; font-weight: 600; }
+  .lcd-total { font-size: 42px; font-weight: 700; color: var(--lcd-glow); line-height: 1.05; margin: 4px 0 2px; }
+  .lcd-total .unit { font-size: 15px; color: var(--lcd-dim); margin-left: 8px; font-weight: 600; }
   .lcd-since { font-size: 11px; color: var(--lcd-dim); }
-  .lcd-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed rgba(157,232,138,0.15); }
-  .lcd-mini .v { font-size: 20px; font-weight: 700; color: var(--lcd-glow); }
-  .lcd-mini .l { font-size: 9px; color: var(--lcd-dim); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+  .lcd-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--panel-line); }
+  .lcd-mini .v { font-size: 19px; font-weight: 700; color: var(--lcd-glow); }
+  .lcd-mini .l { font-size: 9px; color: var(--lcd-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
 
   .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
   .stat-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 8px; text-align: center; }
-  .stat-card .v { font-size: 17px; font-weight: 700; color: var(--amber); }
-  .stat-card .l { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+  .stat-card .v { font-size: 16px; font-weight: 700; color: var(--amber); }
+  .stat-card .l { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
 
   .section-title { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin: 26px 2px 10px; }
 
@@ -75,16 +94,18 @@
   .field { margin-bottom: 12px; }
   .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
   .field label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
-  .field input { width: 100%; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 12px; color: var(--text); font-size: 16px; outline: none; }
-  .field input:focus { border-color: var(--amber-dim); }
-  .auto-badge { font-size: 9px; color: var(--amber); background: rgba(245,167,66,0.12); border: 1px solid var(--amber-dim); border-radius: 999px; padding: 3px 8px; white-space: nowrap; font-weight: 600; }
+  .field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 12px; color: var(--text); font-size: 16px; outline: none; }
+  .field input:focus, .field select:focus { border-color: var(--amber-dim); }
+  .auto-badge { font-size: 9px; color: var(--amber); background: color-mix(in srgb, var(--amber) 15%, transparent); border: 1px solid var(--amber-dim); border-radius: 999px; padding: 3px 8px; white-space: nowrap; font-weight: 600; }
 
-  .btn { width: 100%; padding: 13px; border-radius: 9px; border: none; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+  .btn { width: 100%; padding: 13px; border-radius: 9px; border: none; font-size: 14px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
   .btn-primary { background: var(--amber); color: #201705; }
+  html[data-theme="light"] .btn-primary { color: #fff; }
   .btn-primary:disabled { background: var(--amber-dim); color: #7a6a45; cursor: not-allowed; }
-  .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--panel-line); margin-top: 8px; }
+  .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--panel-line); }
+  .btn-danger { background: var(--bg); color: var(--danger); border: 1px solid var(--danger); }
   .btn-row { display: flex; gap: 8px; margin-top: 8px; }
-  .btn-row .btn-secondary { margin-top: 0; }
+  .btn-row .btn { margin-top: 0; }
   .form-msg { font-size: 11px; margin-top: 8px; text-align: center; }
   .form-msg.err { color: var(--danger); }
   .form-msg.ok { color: var(--lcd-glow); }
@@ -100,7 +121,7 @@
   .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
   .switch-track { display: block; width: 42px; height: 24px; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 999px; position: relative; }
   .switch-thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: var(--text-dim); border-radius: 50%; transition: transform .15s ease, background .15s ease; }
-  .switch input:checked + .switch-track { background: rgba(245,167,66,0.18); border-color: var(--amber-dim); }
+  .switch input:checked + .switch-track { background: color-mix(in srgb, var(--amber) 18%, transparent); border-color: var(--amber-dim); }
   .switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); background: var(--amber); }
 
   .privacy-note { font-size: 10.5px; color: var(--text-dim); line-height: 1.5; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
@@ -116,18 +137,50 @@
   .h-del:active { color: var(--danger); }
   .empty-msg { color: var(--text-dim); font-size: 12px; text-align: center; padding: 24px 0; }
 
+  .badge-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.03em; }
+  .badge-ok { background: color-mix(in srgb, var(--lcd-glow) 18%, transparent); color: var(--lcd-glow); }
+  .badge-warn { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+  .badge-due { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+
+  .records-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .record-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 12px; }
+  .record-card .v { font-size: 18px; font-weight: 700; color: var(--lcd-glow); }
+  .record-card .l { font-size: 9.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px; }
+  .record-card .d { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  .bike-manage-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--panel-line); }
+  .bike-manage-row:last-child { border-bottom: none; }
+  .bike-manage-name { font-size: 13px; font-weight: 600; }
+  .bike-manage-actions { display: flex; gap: 6px; }
+  .mini-btn { background: var(--bg); border: 1px solid var(--panel-line); color: var(--text-dim); font-size: 11px; padding: 6px 9px; border-radius: 7px; cursor: pointer; }
+  .mini-btn.danger { color: var(--danger); }
+
   #importFile { display: none; }
+
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; }
+    .wrap > *:not(#printArea) { display: none !important; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <div class="header">
-   <img src="icon-192.png" alt="Bike Distance Tracker logo" class="header-icon" />
+    <img src="icon-192.png" alt="Bike Distance Tracker logo" class="header-icon" width="34" height="34" />
     <div>
       <h1>Bike Distance Tracker</h1>
-      <div class="sub">Morning start · evening finish</div>
+      <div class="sub" id="headerSub">Morning start · evening finish</div>
     </div>
+    <div class="header-spacer"></div>
+    <button class="icon-btn" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+
+  <div class="bike-bar">
+    <select id="bikeSelect" class="bike-select"></select>
+    <button class="bike-add-btn" id="addBikeBtn" title="Add bike">+</button>
   </div>
 
   <div class="lcd">
@@ -146,6 +199,8 @@
     <div class="stat-card"><div id="statAvg" class="v mono">0</div><div class="l">Avg / day</div></div>
     <div class="stat-card"><div id="statDays" class="v mono">0</div><div class="l">Rides logged</div></div>
   </div>
+
+  <div id="serviceBanner"></div>
 
   <div class="section-title">Last 14 days</div>
   <div class="chart-card"><div id="chartArea"><div class="chart-empty">Log both readings to see your first bar.</div></div></div>
@@ -169,6 +224,54 @@
     </div>
     <button id="saveBtn" class="btn btn-primary">Save</button>
     <div id="formMsg" class="form-msg"></div>
+  </div>
+
+  <div class="section-title">Insights &amp; records</div>
+  <div class="records-grid" id="recordsGrid"></div>
+
+  <button class="collapse-toggle" id="fuelToggle">Fuel &amp; Mileage ▾</button>
+  <div class="form-card settings-card" id="fuelCard" style="display:none">
+    <div class="field">
+      <label for="fuelDate">Date</label>
+      <input id="fuelDate" type="date" />
+    </div>
+    <div class="field">
+      <label for="fuelOdo">Odometer at fill-up (km)</label>
+      <input id="fuelOdo" type="number" inputmode="decimal" placeholder="current odometer reading" />
+    </div>
+    <div class="field">
+      <label for="fuelLiters">Fuel added (litres)</label>
+      <input id="fuelLiters" type="number" inputmode="decimal" placeholder="e.g. 4.2" />
+    </div>
+    <div class="field">
+      <label for="fuelCost">Cost (₹)</label>
+      <input id="fuelCost" type="number" inputmode="decimal" placeholder="e.g. 450" />
+    </div>
+    <button id="saveFuelBtn" class="btn btn-primary">Add fuel entry</button>
+    <div id="fuelMsg" class="form-msg"></div>
+    <div id="fuelStats" class="stats-row" style="margin-top:14px"></div>
+    <div id="fuelHistory" style="margin-top:12px"></div>
+  </div>
+
+  <button class="collapse-toggle" id="serviceToggle">Service Reminder ▾</button>
+  <div class="form-card settings-card" id="serviceCard" style="display:none">
+    <div class="field">
+      <label for="serviceInterval">Service interval (km)</label>
+      <input id="serviceInterval" type="number" inputmode="numeric" placeholder="e.g. 3000" />
+    </div>
+    <div class="field">
+      <label for="serviceLastOdo">Odometer at last service (km)</label>
+      <input id="serviceLastOdo" type="number" inputmode="decimal" placeholder="e.g. 12500" />
+    </div>
+    <div class="field">
+      <label for="serviceLastDate">Date of last service</label>
+      <input id="serviceLastDate" type="date" />
+    </div>
+    <div class="btn-row">
+      <button id="saveServiceBtn" class="btn btn-primary">Save</button>
+      <button id="logServiceNowBtn" class="btn btn-secondary">Log service done today</button>
+    </div>
+    <div id="serviceMsg" class="form-msg"></div>
   </div>
 
   <button class="collapse-toggle" id="vehicleToggle">Vehicle &amp; Driver Details ▾</button>
@@ -196,6 +299,13 @@
     </div>
     <div class="setting-row">
       <div>
+        <div class="setting-title">Manage bikes</div>
+        <div class="setting-sub">Rename or remove a bike profile. Each bike keeps its own history, fuel log, and service record.</div>
+      </div>
+    </div>
+    <div id="bikeManageList" style="margin-top:8px"></div>
+    <div class="setting-row">
+      <div>
         <div class="setting-title">Backup your data</div>
         <div class="setting-sub">Data lives only on this device. Export a copy regularly, or restore from a previous export.</div>
       </div>
@@ -205,6 +315,9 @@
       <button id="importBtn" class="btn btn-secondary">Import backup</button>
     </div>
     <input type="file" id="importFile" accept="application/json" />
+    <div class="btn-row">
+      <button id="exportPdfBtn" class="btn btn-secondary">Export PDF summary</button>
+    </div>
     <div id="settingsMsg" class="form-msg"></div>
   </div>
 
@@ -213,14 +326,18 @@
 
 </div>
 
+<!-- Hidden print-only report, filled in just before printing -->
+<div id="printArea" style="display:none"></div>
+
 <script>
 (function () {
   "use strict";
 
-  var LS_ENTRIES = "odo_entries";
+  var LS_BIKES = "odo_bikes_v2";
+  var LS_ACTIVE = "odo_active_bike_v2";
   var LS_SETTINGS = "odo_settings";
-  var LS_VEHICLE = "odo_vehicle";
-  var DEFAULT_SETTINGS = { autoFillMorning: true };
+  var DEFAULT_SETTINGS = { autoFillMorning: true, theme: "dark" };
+  var DEFAULT_SERVICE = { intervalKm: 3000, lastServiceOdo: null, lastServiceDate: "" };
 
   function todayStr() {
     var d = new Date();
@@ -228,10 +345,17 @@
     return new Date(d - tz).toISOString().slice(0, 10);
   }
   function fmtDate(dstr) {
+    if (!dstr) return "";
     var d = new Date(dstr + "T00:00:00");
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
+  function fmtDateLong(dstr) {
+    if (!dstr) return "—";
+    var d = new Date(dstr + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
   function round1(n) { return Math.round(n * 10) / 10; }
+  function genId() { return "id_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
 
   function loadJSON(key, fallback) {
     try {
@@ -244,113 +368,140 @@
     }
   }
   function saveJSON(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch (e) {
-      return false;
-    }
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
   }
 
-  var entries = loadJSON(LS_ENTRIES, []);
-  var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
-  var vehicle = loadJSON(LS_VEHICLE, { driverName: "", bikeNumber: "", rcNumber: "", aadharNumber: "" });
+  // ---------- data + migration from the single-bike v1 version ----------
+  var bikes = loadJSON(LS_BIKES, null);
+  if (!bikes) {
+    var oldEntries = loadJSON("odo_entries", []);
+    var oldVehicle = loadJSON("odo_vehicle", {});
+    var migrated = {
+      id: genId(),
+      name: (oldVehicle && oldVehicle.bikeNumber) ? oldVehicle.bikeNumber : "My Bike",
+      driverName: (oldVehicle && oldVehicle.driverName) || "",
+      bikeNumber: (oldVehicle && oldVehicle.bikeNumber) || "",
+      rcNumber: (oldVehicle && oldVehicle.rcNumber) || "",
+      aadharNumber: (oldVehicle && oldVehicle.aadharNumber) || "",
+      entries: Array.isArray(oldEntries) ? oldEntries : [],
+      fuel: [],
+      service: Object.assign({}, DEFAULT_SERVICE),
+    };
+    bikes = [migrated];
+    saveJSON(LS_BIKES, bikes);
+  }
 
-  var el = {
-    dateInput: document.getElementById("dateInput"),
-    morningInput: document.getElementById("morningInput"),
-    eveningInput: document.getElementById("eveningInput"),
-    autoBadge: document.getElementById("autoBadge"),
-    saveBtn: document.getElementById("saveBtn"),
-    formMsg: document.getElementById("formMsg"),
-    todayDisplay: document.getElementById("todayDisplay"),
-    lcdSince: document.getElementById("lcdSince"),
-    statTotal: document.getElementById("statTotal"),
-    statWeek: document.getElementById("statWeek"),
-    statStreak: document.getElementById("statStreak"),
-    statMonth: document.getElementById("statMonth"),
-    statAvg: document.getElementById("statAvg"),
-    statDays: document.getElementById("statDays"),
-    chartArea: document.getElementById("chartArea"),
-    historyArea: document.getElementById("historyArea"),
-    vehicleToggle: document.getElementById("vehicleToggle"),
-    vehicleCard: document.getElementById("vehicleCard"),
-    driverName: document.getElementById("driverName"),
-    bikeNumber: document.getElementById("bikeNumber"),
-    rcNumber: document.getElementById("rcNumber"),
-    aadharNumber: document.getElementById("aadharNumber"),
-    saveVehicleBtn: document.getElementById("saveVehicleBtn"),
-    vehicleMsg: document.getElementById("vehicleMsg"),
-    settingsToggle: document.getElementById("settingsToggle"),
-    settingsCard: document.getElementById("settingsCard"),
-    autoFillToggle: document.getElementById("autoFillToggle"),
-    exportBtn: document.getElementById("exportBtn"),
-    importBtn: document.getElementById("importBtn"),
-    importFile: document.getElementById("importFile"),
-    settingsMsg: document.getElementById("settingsMsg"),
-  };
+  var activeBikeId = loadJSON(LS_ACTIVE, null);
+  if (!activeBikeId || !bikes.some(function (b) { return b.id === activeBikeId; })) {
+    activeBikeId = bikes[0].id;
+    saveJSON(LS_ACTIVE, activeBikeId);
+  }
+
+  var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
+
+  function activeBike() {
+    var b = bikes.filter(function (x) { return x.id === activeBikeId; })[0];
+    if (!b) { b = bikes[0]; activeBikeId = b.id; }
+    if (!b.fuel) b.fuel = [];
+    if (!b.service) b.service = Object.assign({}, DEFAULT_SERVICE);
+    return b;
+  }
+  function persistBikes() { saveJSON(LS_BIKES, bikes); }
+  function persistSettings() { saveJSON(LS_SETTINGS, settings); }
+
+  var el = {};
+  ["dateInput","morningInput","eveningInput","autoBadge","saveBtn","formMsg",
+   "todayDisplay","lcdSince","statTotal","statWeek","statStreak","statMonth","statAvg","statDays",
+   "chartArea","historyArea","recordsGrid","serviceBanner",
+   "bikeSelect","addBikeBtn","themeToggle","headerSub",
+   "fuelToggle","fuelCard","fuelDate","fuelOdo","fuelLiters","fuelCost","saveFuelBtn","fuelMsg","fuelStats","fuelHistory",
+   "serviceToggle","serviceCard","serviceInterval","serviceLastOdo","serviceLastDate","saveServiceBtn","logServiceNowBtn","serviceMsg",
+   "vehicleToggle","vehicleCard","driverName","bikeNumber","rcNumber","aadharNumber","saveVehicleBtn","vehicleMsg",
+   "settingsToggle","settingsCard","autoFillToggle","bikeManageList","exportBtn","importBtn","importFile","exportPdfBtn","settingsMsg",
+   "printArea"
+  ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   var autoFilled = false;
 
-  function sortedEntries() {
-    return entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  // ---------- derived helpers ----------
+  function sortedEntries(bike) {
+    return bike.entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
   }
-
-  function withDistance() {
-    return sortedEntries().map(function (e) {
+  function withDistance(bike) {
+    return sortedEntries(bike).map(function (e) {
       var hasBoth = e.morning != null && e.evening != null;
       var distance = hasBoth ? round1(e.evening - e.morning) : null;
       var status = hasBoth ? "done" : (e.morning != null ? "riding" : "pending");
       return Object.assign({}, e, { distance: distance, status: status });
     });
   }
-
-  function render() {
-    var today = todayStr();
-    var wd = withDistance();
-    var todayEntry = wd.filter(function (e) { return e.date === today; })[0] || null;
-
-    var latestReading = null;
-    sortedEntries().forEach(function (e) {
-      if (e.evening != null) latestReading = latestReading == null ? e.evening : Math.max(latestReading, e.evening);
-      if (e.morning != null) latestReading = latestReading == null ? e.morning : Math.max(latestReading, e.morning);
+  function latestOdometer(bike) {
+    var max = null;
+    sortedEntries(bike).forEach(function (e) {
+      if (e.evening != null) max = max == null ? e.evening : Math.max(max, e.evening);
+      if (e.morning != null) max = max == null ? e.morning : Math.max(max, e.morning);
     });
+    bike.fuel.forEach(function (f) {
+      if (f.odometer != null) max = max == null ? f.odometer : Math.max(max, f.odometer);
+    });
+    return max;
+  }
+
+  // ---------- main render ----------
+  function render() {
+    var bike = activeBike();
+    var today = todayStr();
+    var wd = withDistance(bike);
+    var todayEntry = wd.filter(function (e) { return e.date === today; })[0] || null;
+    var latest = latestOdometer(bike);
+
+    el.headerSub.textContent = bike.name || "Morning start · evening finish";
+    document.title = "Bike Distance Tracker — " + (bike.name || "");
 
     if (todayEntry && todayEntry.distance != null) {
       el.todayDisplay.style.fontSize = "";
       el.todayDisplay.innerHTML = todayEntry.distance + '<span class="unit">km</span>';
     } else if (todayEntry && todayEntry.status === "riding") {
-      el.todayDisplay.style.fontSize = "22px";
+      el.todayDisplay.style.fontSize = "20px";
       el.todayDisplay.innerHTML = 'Riding…<span class="unit">add evening reading</span>';
     } else {
-      el.todayDisplay.style.fontSize = "22px";
+      el.todayDisplay.style.fontSize = "20px";
       el.todayDisplay.innerHTML = 'Not started<span class="unit">log a morning reading</span>';
     }
-    el.lcdSince.textContent = latestReading != null ? ("latest odometer: " + latestReading + " km") : "no readings logged yet";
+    el.lcdSince.textContent = latest != null ? ("latest odometer: " + latest + " km") : "no readings logged yet";
 
     var completed = wd.filter(function (e) { return e.distance != null; });
     var total = round1(completed.reduce(function (s, e) { return s + e.distance; }, 0));
     var avg = completed.length ? round1(total / completed.length) : 0;
 
     var now = new Date(today + "T00:00:00");
-    var week = 0, month = 0;
+    var week = 0, month = 0, year = 0;
     completed.forEach(function (e) {
       var d = new Date(e.date + "T00:00:00");
       var diffDays = Math.round((now - d) / 86400000);
       if (diffDays >= 0 && diffDays < 7) week += e.distance;
       if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) month += e.distance;
+      if (d.getFullYear() === now.getFullYear()) year += e.distance;
     });
 
     var dateSet = {};
     completed.forEach(function (e) { dateSet[e.date] = true; });
-    var streak = 0;
+    var streak = 0, bestStreak = 0, run = 0, prevDate = null;
+    sortedEntries(bike).forEach(function (e) {
+      if (e.morning != null && e.evening != null) {
+        if (prevDate) {
+          var gap = Math.round((new Date(e.date + "T00:00:00") - new Date(prevDate + "T00:00:00")) / 86400000);
+          run = gap === 1 ? run + 1 : 1;
+        } else { run = 1; }
+        bestStreak = Math.max(bestStreak, run);
+        prevDate = e.date;
+      }
+    });
     if (completed.length) {
       var cursorDate = dateSet[today] ? today : completed[completed.length - 1].date;
       var d2 = new Date(cursorDate + "T00:00:00");
-      while (dateSet[d2.toISOString().slice(0, 10)]) {
-        streak++;
-        d2.setDate(d2.getDate() - 1);
-      }
+      while (dateSet[d2.toISOString().slice(0, 10)]) { streak++; d2.setDate(d2.getDate() - 1); }
     }
 
     el.statTotal.textContent = total;
@@ -360,19 +511,29 @@
     el.statAvg.textContent = avg;
     el.statDays.textContent = completed.length;
 
+    // personal records
+    var bestDay = completed.reduce(function (best, e) { return (!best || e.distance > best.distance) ? e : best; }, null);
+    var recordsHtml =
+      '<div class="record-card"><div class="v mono">' + (bestDay ? bestDay.distance : "—") + '</div><div class="l">Longest day</div><div class="d">' + (bestDay ? fmtDate(bestDay.date) : "") + '</div></div>' +
+      '<div class="record-card"><div class="v mono">' + bestStreak + '</div><div class="l">Longest streak</div><div class="d">days in a row</div></div>' +
+      '<div class="record-card"><div class="v mono">' + round1(year) + '</div><div class="l">This year</div><div class="d">' + now.getFullYear() + '</div></div>' +
+      '<div class="record-card"><div class="v mono">' + total + '</div><div class="l">Lifetime total</div><div class="d">since ' + (wd[0] ? fmtDate(wd[0].date) : "—") + '</div></div>';
+    el.recordsGrid.innerHTML = recordsHtml;
+
+    // chart
     var chartData = completed.slice(-14);
     if (chartData.length === 0) {
       el.chartArea.innerHTML = '<div class="chart-empty">Log both readings to see your first bar.</div>';
     } else {
       var maxDelta = Math.max(1, Math.max.apply(null, chartData.map(function (e) { return Math.max(0, e.distance); })));
-      var barsHtml = '<div class="bars">' + chartData.map(function (e) {
+      el.chartArea.innerHTML = '<div class="bars">' + chartData.map(function (e) {
         var h = Math.max(2, (Math.max(0, e.distance) / maxDelta) * 100);
         return '<div class="bar-col"><div class="bar" style="height:' + h + '%" title="' + e.distance + ' km"></div>' +
           '<div class="bar-label">' + fmtDate(e.date).replace(" ", "") + '</div></div>';
       }).join("") + '</div>';
-      el.chartArea.innerHTML = barsHtml;
     }
 
+    // history
     if (wd.length === 0) {
       el.historyArea.innerHTML = '<div class="empty-msg">No entries yet — your rides will show up here.</div>';
     } else {
@@ -389,24 +550,26 @@
         btn.addEventListener("click", function () { handleDelete(btn.getAttribute("data-del")); });
       });
     }
+
+    renderFuel(bike, latest);
+    renderService(bike, latest);
+    renderBikeSelect();
+    renderBikeManageList();
   }
 
+  // ---------- morning/evening form ----------
   function refillForm() {
+    var bike = activeBike();
     var date = el.dateInput.value;
-    var existing = entries.filter(function (e) { return e.date === date; })[0];
+    var existing = bike.entries.filter(function (e) { return e.date === date; })[0];
 
     if (existing && existing.morning != null) {
       el.morningInput.value = existing.morning;
       autoFilled = false;
     } else if (settings.autoFillMorning) {
-      var prior = sortedEntries().slice().reverse().filter(function (e) { return e.date < date && e.evening != null; })[0];
-      if (prior) {
-        el.morningInput.value = prior.evening;
-        autoFilled = true;
-      } else {
-        el.morningInput.value = "";
-        autoFilled = false;
-      }
+      var prior = sortedEntries(bike).slice().reverse().filter(function (e) { return e.date < date && e.evening != null; })[0];
+      if (prior) { el.morningInput.value = prior.evening; autoFilled = true; }
+      else { el.morningInput.value = ""; autoFilled = false; }
     } else {
       el.morningInput.value = "";
       autoFilled = false;
@@ -416,8 +579,8 @@
   }
 
   function handleSave() {
-    el.formMsg.textContent = "";
-    el.formMsg.className = "form-msg";
+    el.formMsg.textContent = ""; el.formMsg.className = "form-msg";
+    var bike = activeBike();
     var date = el.dateInput.value;
     if (!date) { el.formMsg.textContent = "Pick a date."; el.formMsg.className = "form-msg err"; return; }
 
@@ -432,22 +595,16 @@
     if (m != null && ev != null && ev < m) { el.formMsg.textContent = "Evening reading is lower than morning — check the numbers."; el.formMsg.className = "form-msg err"; return; }
 
     var idx = -1;
-    for (var i = 0; i < entries.length; i++) { if (entries[i].date === date) { idx = i; break; } }
-
+    for (var i = 0; i < bike.entries.length; i++) { if (bike.entries[i].date === date) { idx = i; break; } }
     var updated = { date: date, morning: m, evening: ev };
     if (idx >= 0) {
-      updated.morning = m != null ? m : entries[idx].morning;
-      updated.evening = ev != null ? ev : entries[idx].evening;
-      entries[idx] = updated;
+      updated.morning = m != null ? m : bike.entries[idx].morning;
+      updated.evening = ev != null ? ev : bike.entries[idx].evening;
+      bike.entries[idx] = updated;
     } else {
-      entries.push(updated);
+      bike.entries.push(updated);
     }
-
-    if (!saveJSON(LS_ENTRIES, entries)) {
-      el.formMsg.textContent = "Couldn't save — storage might be full.";
-      el.formMsg.className = "form-msg err";
-      return;
-    }
+    persistBikes();
 
     var both = updated.morning != null && updated.evening != null;
     el.formMsg.textContent = both ? ("Saved — " + round1(updated.evening - updated.morning) + " km today.") : "Saved. Add the other reading when you're done riding.";
@@ -457,60 +614,249 @@
   }
 
   function handleDelete(date) {
-    entries = entries.filter(function (e) { return e.date !== date; });
-    saveJSON(LS_ENTRIES, entries);
+    var bike = activeBike();
+    bike.entries = bike.entries.filter(function (e) { return e.date !== date; });
+    persistBikes();
     render();
     refillForm();
   }
 
-  function handleSaveVehicle() {
-    vehicle = {
-      driverName: el.driverName.value.trim(),
-      bikeNumber: el.bikeNumber.value.trim(),
-      rcNumber: el.rcNumber.value.trim(),
-      aadharNumber: el.aadharNumber.value.trim(),
-    };
-    var ok = saveJSON(LS_VEHICLE, vehicle);
-    el.vehicleMsg.textContent = ok ? "Saved." : "Couldn't save — try again.";
-    el.vehicleMsg.className = ok ? "form-msg ok" : "form-msg err";
+  // ---------- fuel & mileage ----------
+  function renderFuel(bike, latest) {
+    var logs = bike.fuel.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    var withMileage = logs.map(function (f, i) {
+      if (i === 0) return Object.assign({}, f, { mileage: null });
+      var prev = logs[i - 1];
+      var kmDiff = f.odometer - prev.odometer;
+      var mileage = (kmDiff > 0 && f.liters > 0) ? round1(kmDiff / f.liters) : null;
+      return Object.assign({}, f, { mileage: mileage });
+    });
+    var mileages = withMileage.filter(function (f) { return f.mileage != null; }).map(function (f) { return f.mileage; });
+    var avgMileage = mileages.length ? round1(mileages.reduce(function (s, v) { return s + v; }, 0) / mileages.length) : null;
+    var totalCost = logs.reduce(function (s, f) { return s + (f.cost || 0); }, 0);
+    var totalLiters = logs.reduce(function (s, f) { return s + (f.liters || 0); }, 0);
+
+    el.fuelStats.innerHTML =
+      '<div class="stat-card"><div class="v mono">' + (avgMileage != null ? avgMileage : "—") + '</div><div class="l">Avg km/l</div></div>' +
+      '<div class="stat-card"><div class="v mono">₹' + Math.round(totalCost) + '</div><div class="l">Total spent</div></div>' +
+      '<div class="stat-card"><div class="v mono">' + round1(totalLiters) + '</div><div class="l">Litres total</div></div>';
+
+    if (withMileage.length === 0) {
+      el.fuelHistory.innerHTML = '<div class="empty-msg">No fuel entries yet.</div>';
+    } else {
+      el.fuelHistory.innerHTML = '<div class="history-list">' + withMileage.slice().reverse().map(function (f) {
+        return '<div class="h-row"><div><div class="h-date">' + fmtDate(f.date) + '</div>' +
+          '<div class="h-reading mono">' + f.liters + ' L · ₹' + f.cost + ' · ' + f.odometer + ' km</div></div>' +
+          '<div class="h-right"><div class="h-delta mono">' + (f.mileage != null ? (f.mileage + " km/l") : "—") + '</div>' +
+          '<button class="h-del" data-delfuel="' + f.id + '" aria-label="Delete">✕</button></div></div>';
+      }).join("") + '</div>';
+      Array.prototype.forEach.call(el.fuelHistory.querySelectorAll("[data-delfuel]"), function (btn) {
+        btn.addEventListener("click", function () {
+          var bike2 = activeBike();
+          bike2.fuel = bike2.fuel.filter(function (f) { return f.id !== btn.getAttribute("data-delfuel"); });
+          persistBikes(); render();
+        });
+      });
+    }
+
+    if (!el.fuelOdo.value && latest != null) el.fuelOdo.value = latest;
+    if (!el.fuelDate.value) el.fuelDate.value = todayStr();
   }
 
+  function handleSaveFuel() {
+    el.fuelMsg.textContent = ""; el.fuelMsg.className = "form-msg";
+    var date = el.fuelDate.value || todayStr();
+    var odo = parseFloat(el.fuelOdo.value);
+    var liters = parseFloat(el.fuelLiters.value);
+    var cost = parseFloat(el.fuelCost.value);
+    if (isNaN(odo) || isNaN(liters) || liters <= 0) {
+      el.fuelMsg.textContent = "Enter a valid odometer reading and litres.";
+      el.fuelMsg.className = "form-msg err";
+      return;
+    }
+    var bike = activeBike();
+    bike.fuel.push({ id: genId(), date: date, odometer: odo, liters: round1(liters), cost: isNaN(cost) ? 0 : round1(cost) });
+    persistBikes();
+    el.fuelLiters.value = ""; el.fuelCost.value = "";
+    el.fuelMsg.textContent = "Fuel entry added.";
+    el.fuelMsg.className = "form-msg ok";
+    render();
+  }
+
+  // ---------- service reminders ----------
+  function renderService(bike, latest) {
+    var svc = bike.service || DEFAULT_SERVICE;
+    el.serviceInterval.value = svc.intervalKm || "";
+    el.serviceLastOdo.value = svc.lastServiceOdo != null ? svc.lastServiceOdo : "";
+    el.serviceLastDate.value = svc.lastServiceDate || "";
+
+    if (!svc.intervalKm || svc.lastServiceOdo == null || latest == null) {
+      el.serviceBanner.innerHTML = "";
+      return;
+    }
+    var dueAt = svc.lastServiceOdo + svc.intervalKm;
+    var remaining = round1(dueAt - latest);
+    var pillClass = "badge-ok", label = remaining + " km until next service";
+    if (remaining <= 0) { pillClass = "badge-due"; label = "Service overdue by " + Math.abs(remaining) + " km"; }
+    else if (remaining <= svc.intervalKm * 0.1) { pillClass = "badge-warn"; label = "Service due soon — " + remaining + " km left"; }
+
+    el.serviceBanner.innerHTML =
+      '<div class="form-card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">' +
+      '<div><div style="font-size:12px;font-weight:600">Next service</div>' +
+      '<div style="font-size:10.5px;color:var(--text-dim);margin-top:2px">last serviced at ' + svc.lastServiceOdo + ' km' + (svc.lastServiceDate ? (" · " + fmtDate(svc.lastServiceDate)) : "") + '</div></div>' +
+      '<span class="badge-pill ' + pillClass + '">' + label + '</span></div>';
+  }
+
+  function handleSaveService() {
+    el.serviceMsg.textContent = ""; el.serviceMsg.className = "form-msg";
+    var bike = activeBike();
+    var interval = parseFloat(el.serviceInterval.value);
+    var lastOdo = el.serviceLastOdo.value.trim() === "" ? null : parseFloat(el.serviceLastOdo.value);
+    bike.service = {
+      intervalKm: isNaN(interval) ? 3000 : interval,
+      lastServiceOdo: (lastOdo != null && !isNaN(lastOdo)) ? lastOdo : null,
+      lastServiceDate: el.serviceLastDate.value || "",
+    };
+    persistBikes();
+    el.serviceMsg.textContent = "Saved."; el.serviceMsg.className = "form-msg ok";
+    render();
+  }
+
+  function handleLogServiceNow() {
+    var bike = activeBike();
+    var latest = latestOdometer(bike);
+    if (latest == null) {
+      el.serviceMsg.textContent = "Log an odometer reading first.";
+      el.serviceMsg.className = "form-msg err";
+      return;
+    }
+    bike.service = bike.service || Object.assign({}, DEFAULT_SERVICE);
+    bike.service.lastServiceOdo = latest;
+    bike.service.lastServiceDate = todayStr();
+    persistBikes();
+    el.serviceMsg.textContent = "Logged service at " + latest + " km.";
+    el.serviceMsg.className = "form-msg ok";
+    render();
+  }
+
+  // ---------- vehicle & driver details ----------
+  function refillVehicleForm() {
+    var bike = activeBike();
+    el.driverName.value = bike.driverName || "";
+    el.bikeNumber.value = bike.bikeNumber || "";
+    el.rcNumber.value = bike.rcNumber || "";
+    el.aadharNumber.value = bike.aadharNumber || "";
+  }
+  function handleSaveVehicle() {
+    var bike = activeBike();
+    bike.driverName = el.driverName.value.trim();
+    bike.bikeNumber = el.bikeNumber.value.trim();
+    bike.rcNumber = el.rcNumber.value.trim();
+    bike.aadharNumber = el.aadharNumber.value.trim();
+    if (bike.bikeNumber && (!bike.name || bike.name === "My Bike")) bike.name = bike.bikeNumber;
+    persistBikes();
+    el.vehicleMsg.textContent = "Saved."; el.vehicleMsg.className = "form-msg ok";
+    render();
+  }
+
+  // ---------- multi-bike management ----------
+  function renderBikeSelect() {
+    el.bikeSelect.innerHTML = bikes.map(function (b) {
+      return '<option value="' + b.id + '"' + (b.id === activeBikeId ? " selected" : "") + '>' + (b.name || "Unnamed bike") + '</option>';
+    }).join("");
+  }
+  function renderBikeManageList() {
+    el.bikeManageList.innerHTML = bikes.map(function (b) {
+      return '<div class="bike-manage-row"><div class="bike-manage-name">' + (b.name || "Unnamed bike") + (b.id === activeBikeId ? " (active)" : "") + '</div>' +
+        '<div class="bike-manage-actions">' +
+        '<button class="mini-btn" data-rename="' + b.id + '">Rename</button>' +
+        (bikes.length > 1 ? '<button class="mini-btn danger" data-delbike="' + b.id + '">Delete</button>' : '') +
+        '</div></div>';
+    }).join("");
+    Array.prototype.forEach.call(el.bikeManageList.querySelectorAll("[data-rename]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-rename");
+        var b = bikes.filter(function (x) { return x.id === id; })[0];
+        var name = prompt("Rename bike:", b.name || "");
+        if (name && name.trim()) { b.name = name.trim(); persistBikes(); render(); }
+      });
+    });
+    Array.prototype.forEach.call(el.bikeManageList.querySelectorAll("[data-delbike]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-delbike");
+        if (!confirm("Delete this bike and all its data? This can't be undone.")) return;
+        bikes = bikes.filter(function (x) { return x.id !== id; });
+        if (activeBikeId === id) activeBikeId = bikes[0].id;
+        persistBikes(); saveJSON(LS_ACTIVE, activeBikeId);
+        render(); refillForm(); refillVehicleForm();
+      });
+    });
+  }
+  function handleAddBike() {
+    var name = prompt("Name this bike (e.g. plate number):", "");
+    if (!name || !name.trim()) return;
+    var b = { id: genId(), name: name.trim(), driverName: "", bikeNumber: "", rcNumber: "", aadharNumber: "", entries: [], fuel: [], service: Object.assign({}, DEFAULT_SERVICE) };
+    bikes.push(b);
+    activeBikeId = b.id;
+    persistBikes(); saveJSON(LS_ACTIVE, activeBikeId);
+    render(); refillForm(); refillVehicleForm();
+  }
+  function handleSwitchBike() {
+    activeBikeId = el.bikeSelect.value;
+    saveJSON(LS_ACTIVE, activeBikeId);
+    render(); refillForm(); refillVehicleForm();
+  }
+
+  // ---------- theme ----------
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", settings.theme);
+    el.themeToggle.textContent = settings.theme === "light" ? "☀️" : "🌙";
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", settings.theme === "light" ? "#f4f1e9" : "#12160f");
+  }
+  function handleToggleTheme() {
+    settings.theme = settings.theme === "light" ? "dark" : "light";
+    persistSettings();
+    applyTheme();
+  }
+
+  // ---------- backup export/import ----------
   function handleExport() {
-    var payload = { entries: entries, settings: settings, vehicle: vehicle, exportedAt: new Date().toISOString() };
+    var payload = { bikes: bikes, settings: settings, exportedAt: new Date().toISOString(), version: 2 };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
-    a.href = url;
-    a.download = "odo-log-backup-" + todayStr() + ".json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    a.href = url; a.download = "bike-tracker-backup-" + todayStr() + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    el.settingsMsg.textContent = "Backup downloaded.";
-    el.settingsMsg.className = "form-msg ok";
+    el.settingsMsg.textContent = "Backup downloaded."; el.settingsMsg.className = "form-msg ok";
   }
-
   function handleImportFile(file) {
     var reader = new FileReader();
     reader.onload = function () {
       try {
         var data = JSON.parse(reader.result);
-        if (!data || !Array.isArray(data.entries)) throw new Error("bad format");
-        entries = data.entries;
-        settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
-        vehicle = data.vehicle || vehicle;
-        saveJSON(LS_ENTRIES, entries);
-        saveJSON(LS_SETTINGS, settings);
-        saveJSON(LS_VEHICLE, vehicle);
-        el.autoFillToggle.checked = !!settings.autoFillMorning;
-        el.driverName.value = vehicle.driverName || "";
-        el.bikeNumber.value = vehicle.bikeNumber || "";
-        el.rcNumber.value = vehicle.rcNumber || "";
-        el.aadharNumber.value = vehicle.aadharNumber || "";
-        render();
-        refillForm();
-        el.settingsMsg.textContent = "Backup restored.";
-        el.settingsMsg.className = "form-msg ok";
+        if (data && Array.isArray(data.bikes)) {
+          bikes = data.bikes.map(function (b) {
+            return Object.assign({ fuel: [], service: Object.assign({}, DEFAULT_SERVICE) }, b);
+          });
+          settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+        } else if (data && Array.isArray(data.entries)) {
+          bikes = [{
+            id: genId(), name: (data.vehicle && data.vehicle.bikeNumber) || "My Bike",
+            driverName: (data.vehicle && data.vehicle.driverName) || "",
+            bikeNumber: (data.vehicle && data.vehicle.bikeNumber) || "",
+            rcNumber: (data.vehicle && data.vehicle.rcNumber) || "",
+            aadharNumber: (data.vehicle && data.vehicle.aadharNumber) || "",
+            entries: data.entries, fuel: [], service: Object.assign({}, DEFAULT_SERVICE),
+          }];
+          settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+        } else { throw new Error("bad format"); }
+
+        activeBikeId = bikes[0].id;
+        persistBikes(); persistSettings(); saveJSON(LS_ACTIVE, activeBikeId);
+        applyTheme(); render(); refillForm(); refillVehicleForm();
+        el.settingsMsg.textContent = "Backup restored."; el.settingsMsg.className = "form-msg ok";
       } catch (e) {
         el.settingsMsg.textContent = "That file doesn't look like a valid backup.";
         el.settingsMsg.className = "form-msg err";
@@ -519,17 +865,36 @@
     reader.readAsText(file);
   }
 
-  // wire up events
+  // ---------- PDF export (browser print) ----------
+  function handleExportPdf() {
+    var bike = activeBike();
+    var wd = withDistance(bike);
+    var completed = wd.filter(function (e) { return e.distance != null; });
+    var total = round1(completed.reduce(function (s, e) { return s + e.distance; }, 0));
+    var rowsHtml = wd.slice().reverse().slice(0, 60).map(function (e) {
+      return "<tr><td>" + fmtDate(e.date) + "</td><td>" + (e.morning != null ? e.morning : "—") + "</td><td>" + (e.evening != null ? e.evening : "—") + "</td><td>" + (e.distance != null ? e.distance : "—") + "</td></tr>";
+    }).join("");
+
+    el.printArea.innerHTML =
+      "<h1 style='font-family:sans-serif'>Bike Distance Tracker — Summary</h1>" +
+      "<p style='font-family:sans-serif'><b>Bike:</b> " + (bike.name || "—") + " &nbsp; <b>Driver:</b> " + (bike.driverName || "—") + "</p>" +
+      "<p style='font-family:sans-serif'><b>Bike No:</b> " + (bike.bikeNumber || "—") + " &nbsp; <b>RC No:</b> " + (bike.rcNumber || "—") + "</p>" +
+      "<p style='font-family:sans-serif'><b>Total distance logged:</b> " + total + " km &nbsp; <b>Rides logged:</b> " + completed.length + "</p>" +
+      "<p style='font-family:sans-serif;color:#555'>Generated " + fmtDateLong(todayStr()) + "</p>" +
+      "<table style='width:100%;border-collapse:collapse;font-family:sans-serif;font-size:13px' border='1' cellpadding='6'>" +
+      "<thead><tr><th>Date</th><th>Morning (km)</th><th>Evening (km)</th><th>Distance (km)</th></tr></thead><tbody>" + rowsHtml + "</tbody></table>";
+    el.printArea.style.display = "block";
+    window.print();
+    setTimeout(function () { el.printArea.style.display = "none"; }, 500);
+  }
+
+  // ---------- wire up ----------
   el.dateInput.value = todayStr();
   el.dateInput.max = todayStr();
   el.dateInput.addEventListener("change", refillForm);
   el.morningInput.addEventListener("input", function () { autoFilled = false; el.autoBadge.style.display = "none"; });
   el.saveBtn.addEventListener("click", handleSave);
 
-  el.driverName.value = vehicle.driverName || "";
-  el.bikeNumber.value = vehicle.bikeNumber || "";
-  el.rcNumber.value = vehicle.rcNumber || "";
-  el.aadharNumber.value = vehicle.aadharNumber || "";
   el.saveVehicleBtn.addEventListener("click", handleSaveVehicle);
   el.vehicleToggle.addEventListener("click", function () {
     var open = el.vehicleCard.style.display !== "none";
@@ -537,10 +902,25 @@
     el.vehicleToggle.textContent = "Vehicle & Driver Details " + (open ? "▾" : "▴");
   });
 
+  el.fuelToggle.addEventListener("click", function () {
+    var open = el.fuelCard.style.display !== "none";
+    el.fuelCard.style.display = open ? "none" : "";
+    el.fuelToggle.textContent = "Fuel & Mileage " + (open ? "▾" : "▴");
+  });
+  el.saveFuelBtn.addEventListener("click", handleSaveFuel);
+
+  el.serviceToggle.addEventListener("click", function () {
+    var open = el.serviceCard.style.display !== "none";
+    el.serviceCard.style.display = open ? "none" : "";
+    el.serviceToggle.textContent = "Service Reminder " + (open ? "▾" : "▴");
+  });
+  el.saveServiceBtn.addEventListener("click", handleSaveService);
+  el.logServiceNowBtn.addEventListener("click", handleLogServiceNow);
+
   el.autoFillToggle.checked = !!settings.autoFillMorning;
   el.autoFillToggle.addEventListener("change", function () {
     settings.autoFillMorning = el.autoFillToggle.checked;
-    saveJSON(LS_SETTINGS, settings);
+    persistSettings();
     refillForm();
   });
   el.settingsToggle.addEventListener("click", function () {
@@ -554,9 +934,16 @@
     if (el.importFile.files && el.importFile.files[0]) handleImportFile(el.importFile.files[0]);
     el.importFile.value = "";
   });
+  el.exportPdfBtn.addEventListener("click", handleExportPdf);
 
+  el.bikeSelect.addEventListener("change", handleSwitchBike);
+  el.addBikeBtn.addEventListener("click", handleAddBike);
+  el.themeToggle.addEventListener("click", handleToggleTheme);
+
+  applyTheme();
   render();
   refillForm();
+  refillVehicleForm();
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
