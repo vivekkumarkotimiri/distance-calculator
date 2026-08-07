@@ -31,3 +31,10 @@ This folder is a complete, installable web app (PWA). No build step, no server c
 - Everything (readings, settings, vehicle details) is stored in the browser's local storage **on that phone only**. Nothing is uploaded anywhere.
 - Use the **Export backup** button in Settings regularly to save a `.json` copy of your data somewhere safe (email it to yourself, save to Drive, etc.)
 - If you ever clear your browser's site data, uninstall the app, or switch phones, use **Import backup** to restore from that file.
+
+## Updating the app after deployment
+The service worker now checks the network for a fresh copy of the page every time you open the app, and falls back to the offline cache only if there's no connection. That means:
+- Just push your changes to `index.html` (or any file) as normal — **no need to manually edit `sw.js` or bump a version number anymore.**
+- Open the app while you have internet at least once after deploying, and it'll auto-update and reload itself with the new version.
+- It still works fully offline after that first check, using whatever it last successfully loaded.
+

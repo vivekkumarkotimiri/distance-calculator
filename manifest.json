@@ -1,6 +1,6 @@
 {
-  "name": "Bike Distance Tracker",
-  "short_name": "BDA",
+  "name": "Odo Log — Bike Distance Tracker",
+  "short_name": "Odo Log",
   "description": "Track your bike's daily distance with morning and evening odometer readings.",
   "start_url": "./index.html",
   "scope": "./",

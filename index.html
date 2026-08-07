@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Bike Distance Tracker</title>
+<title>Odo Log — Bike Distance Tracker</title>
 <meta name="theme-color" content="#12160f" />
 <meta name="description" content="Track your bike's daily distance with morning and evening odometer readings." />
 <link rel="manifest" href="manifest.json" />
@@ -128,7 +128,7 @@
       <circle cx="12" cy="12" r="8.5" stroke="#4d6b45" stroke-width="1.6"/>
     </svg>
     <div>
-      <h1>Bike Distance Tracker</h1>
+      <h1>Odo Log</h1>
       <div class="sub">Morning start · evening finish</div>
     </div>
   </div>
@@ -564,6 +564,12 @@
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
     });
   }
 })();

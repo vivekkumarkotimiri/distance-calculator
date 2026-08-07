@@ -1,4 +1,4 @@
-const CACHE_NAME = "odo-log-v2";
+const CACHE_NAME = "odo-log-cache";
 const ASSETS = [
   "./",
   "./index.html",
@@ -23,19 +23,39 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Network-first for the page itself (and manifest), so edits show up on next
+// load automatically. Falls back to the cached copy only when offline.
+// Everything else (icons) uses cache-first since they rarely change.
 self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return (
-        cached ||
-        fetch(event.request)
+  const req = event.request;
+  const isPageOrManifest =
+    req.mode === "navigate" ||
+    req.url.endsWith("/") ||
+    req.url.endsWith("index.html") ||
+    req.url.endsWith("manifest.json");
+
+  if (isPageOrManifest) {
+    event.respondWith(
+      fetch(req)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          return response;
+        })
+        .catch(() => caches.match(req))
+    );
+  } else {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        const fetchPromise = fetch(req)
           .then((response) => {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
             return response;
           })
-          .catch(() => cached)
-      );
-    })
-  );
+          .catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+  }
 });
