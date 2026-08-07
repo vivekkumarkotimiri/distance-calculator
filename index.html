@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Odo Log — Bike Distance Tracker</title>
+<meta name="theme-color" content="#12160f" />
+<meta name="description" content="Track your bike's daily distance with morning and evening odometer readings." />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+  :root {
+    --bg: #12160f;
+    --panel: #1c221a;
+    --panel-line: #2b3327;
+    --lcd-glow: #9de88a;
+    --lcd-dim: #4d6b45;
+    --amber: #f5a742;
+    --amber-dim: #7a5827;
+    --text: #eae7dc;
+    --text-dim: #93998c;
+    --danger: #e2604f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "SF Mono", "Roboto Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 18px 16px 56px; }
+
+  .header { display: flex; align-items: center; gap: 10px; padding: 4px 2px 18px; }
+  .header svg { width: 30px; height: 30px; flex: none; }
+  .header h1 { font-size: 17px; letter-spacing: 0.12em; font-weight: 700; margin: 0; text-transform: uppercase; }
+  .header .sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+
+  .lcd {
+    background: linear-gradient(180deg, #283523 0%, #1e2919 100%);
+    border: 1px solid var(--panel-line);
+    border-radius: 14px;
+    padding: 20px 20px 18px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 2px 12px rgba(0,0,0,0.35);
+  }
+  .lcd-label { font-size: 10px; letter-spacing: 0.18em; color: var(--lcd-dim); text-transform: uppercase; font-weight: 700; }
+  .lcd-total { font-size: 44px; font-weight: 700; color: var(--lcd-glow); line-height: 1.05; margin: 4px 0 2px; text-shadow: 0 0 14px rgba(157,232,138,0.35); }
+  .lcd-total .unit { font-size: 16px; color: var(--lcd-dim); margin-left: 8px; font-weight: 600; }
+  .lcd-since { font-size: 11px; color: var(--lcd-dim); }
+  .lcd-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed rgba(157,232,138,0.15); }
+  .lcd-mini .v { font-size: 20px; font-weight: 700; color: var(--lcd-glow); }
+  .lcd-mini .l { font-size: 9px; color: var(--lcd-dim); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .stat-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .stat-card .v { font-size: 17px; font-weight: 700; color: var(--amber); }
+  .stat-card .l { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+
+  .section-title { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin: 26px 2px 10px; }
+
+  .chart-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 14px 12px 8px; }
+  .chart-empty { color: var(--text-dim); font-size: 12px; text-align: center; padding: 20px 0; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 90px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .bar { width: 100%; max-width: 18px; background: var(--amber); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .bar-label { font-size: 8px; color: var(--text-dim); margin-top: 5px; white-space: nowrap; }
+
+  .form-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .field label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+  .field input { width: 100%; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 12px; color: var(--text); font-size: 16px; outline: none; }
+  .field input:focus { border-color: var(--amber-dim); }
+  .auto-badge { font-size: 9px; color: var(--amber); background: rgba(245,167,66,0.12); border: 1px solid var(--amber-dim); border-radius: 999px; padding: 3px 8px; white-space: nowrap; font-weight: 600; }
+
+  .btn { width: 100%; padding: 13px; border-radius: 9px; border: none; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+  .btn-primary { background: var(--amber); color: #201705; }
+  .btn-primary:disabled { background: var(--amber-dim); color: #7a6a45; cursor: not-allowed; }
+  .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--panel-line); margin-top: 8px; }
+  .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+  .btn-row .btn-secondary { margin-top: 0; }
+  .form-msg { font-size: 11px; margin-top: 8px; text-align: center; }
+  .form-msg.err { color: var(--danger); }
+  .form-msg.ok { color: var(--lcd-glow); }
+
+  .collapse-toggle { width: 100%; background: none; border: none; color: var(--text-dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 14px 4px 6px; text-align: left; cursor: pointer; }
+  .settings-card { margin-top: 4px; }
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .setting-title { font-size: 13px; font-weight: 600; }
+  .setting-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+  .setting-row + .setting-row { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--panel-line); }
+
+  .switch { flex: none; position: relative; display: inline-block; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch-track { display: block; width: 42px; height: 24px; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 999px; position: relative; }
+  .switch-thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: var(--text-dim); border-radius: 50%; transition: transform .15s ease, background .15s ease; }
+  .switch input:checked + .switch-track { background: rgba(245,167,66,0.18); border-color: var(--amber-dim); }
+  .switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); background: var(--amber); }
+
+  .privacy-note { font-size: 10.5px; color: var(--text-dim); line-height: 1.5; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .privacy-note b { color: var(--text); }
+
+  .history-list { display: flex; flex-direction: column; gap: 6px; }
+  .h-row { display: flex; align-items: center; justify-content: space-between; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 12px; }
+  .h-date { font-size: 13px; font-weight: 600; }
+  .h-reading { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .h-right { display: flex; align-items: center; gap: 10px; }
+  .h-delta { font-size: 14px; font-weight: 700; color: var(--lcd-glow); min-width: 52px; text-align: right; }
+  .h-del { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; padding: 4px 6px; }
+  .h-del:active { color: var(--danger); }
+  .empty-msg { color: var(--text-dim); font-size: 12px; text-align: center; padding: 24px 0; }
+
+  #importFile { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <svg viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="3.2" stroke="#f5a742" stroke-width="1.6"/>
+      <circle cx="12" cy="12" r="8.5" stroke="#4d6b45" stroke-width="1.6"/>
+    </svg>
+    <div>
+      <h1>Odo Log</h1>
+      <div class="sub">Morning start · evening finish</div>
+    </div>
+  </div>
+
+  <div class="lcd">
+    <div class="lcd-label">Today's Distance</div>
+    <div id="todayDisplay" class="lcd-total mono">—</div>
+    <div id="lcdSince" class="lcd-since">no readings logged yet</div>
+    <div class="lcd-row">
+      <div class="lcd-mini"><div id="statTotal" class="v mono">0</div><div class="l">Total km</div></div>
+      <div class="lcd-mini"><div id="statWeek" class="v mono">0</div><div class="l">This week</div></div>
+      <div class="lcd-mini"><div id="statStreak" class="v mono">0</div><div class="l">Day streak</div></div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div id="statMonth" class="v mono">0</div><div class="l">This month</div></div>
+    <div class="stat-card"><div id="statAvg" class="v mono">0</div><div class="l">Avg / day</div></div>
+    <div class="stat-card"><div id="statDays" class="v mono">0</div><div class="l">Rides logged</div></div>
+  </div>
+
+  <div class="section-title">Last 14 days</div>
+  <div class="chart-card"><div id="chartArea"><div class="chart-empty">Log both readings to see your first bar.</div></div></div>
+
+  <div class="section-title">Log a reading</div>
+  <div class="form-card">
+    <div class="field">
+      <label for="dateInput">Date</label>
+      <input id="dateInput" type="date" />
+    </div>
+    <div class="field">
+      <div class="field-label-row">
+        <label style="margin-bottom:0" for="morningInput">Morning start (km)</label>
+        <span id="autoBadge" class="auto-badge" style="display:none">carried over from yesterday</span>
+      </div>
+      <input id="morningInput" type="number" inputmode="decimal" placeholder="odometer before riding" />
+    </div>
+    <div class="field">
+      <label for="eveningInput">Evening finish (km)</label>
+      <input id="eveningInput" type="number" inputmode="decimal" placeholder="odometer after riding" />
+    </div>
+    <button id="saveBtn" class="btn btn-primary">Save</button>
+    <div id="formMsg" class="form-msg"></div>
+  </div>
+
+  <button class="collapse-toggle" id="vehicleToggle">Vehicle &amp; Driver Details ▾</button>
+  <div class="form-card settings-card" id="vehicleCard" style="display:none">
+    <div class="privacy-note"><b>Stays on this device.</b> These details are saved only in this browser's local storage — never uploaded or synced anywhere.</div>
+    <div class="field"><label for="driverName">Driver name</label><input id="driverName" type="text" placeholder="Full name" /></div>
+    <div class="field"><label for="bikeNumber">Bike / vehicle number</label><input id="bikeNumber" type="text" placeholder="e.g. TS09EF1234" style="text-transform:uppercase" /></div>
+    <div class="field"><label for="rcNumber">RC number</label><input id="rcNumber" type="text" placeholder="Registration certificate number" /></div>
+    <div class="field"><label for="aadharNumber">Aadhar number</label><input id="aadharNumber" type="text" inputmode="numeric" placeholder="XXXX XXXX XXXX" maxlength="14" /></div>
+    <button id="saveVehicleBtn" class="btn btn-primary">Save details</button>
+    <div id="vehicleMsg" class="form-msg"></div>
+  </div>
+
+  <button class="collapse-toggle" id="settingsToggle">Settings ▾</button>
+  <div class="form-card settings-card" id="settingsCard" style="display:none">
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Auto-fill morning reading</div>
+        <div class="setting-sub">Carries yesterday's evening odometer into today's morning field — still editable before saving.</div>
+      </div>
+      <label class="switch">
+        <input id="autoFillToggle" type="checkbox" checked />
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </label>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Backup your data</div>
+        <div class="setting-sub">Data lives only on this device. Export a copy regularly, or restore from a previous export.</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button id="exportBtn" class="btn btn-secondary">Export backup</button>
+      <button id="importBtn" class="btn btn-secondary">Import backup</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" />
+    <div id="settingsMsg" class="form-msg"></div>
+  </div>
+
+  <div class="section-title">History</div>
+  <div id="historyArea"><div class="empty-msg">No entries yet — your rides will show up here.</div></div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var LS_ENTRIES = "odo_entries";
+  var LS_SETTINGS = "odo_settings";
+  var LS_VEHICLE = "odo_vehicle";
+  var DEFAULT_SETTINGS = { autoFillMorning: true };
+
+  function todayStr() {
+    var d = new Date();
+    var tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0, 10);
+  }
+  function fmtDate(dstr) {
+    var d = new Date(dstr + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function round1(n) { return Math.round(n * 10) / 10; }
+
+  function loadJSON(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (raw == null) return fallback;
+      var parsed = JSON.parse(raw);
+      return parsed == null ? fallback : parsed;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  function saveJSON(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var entries = loadJSON(LS_ENTRIES, []);
+  var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
+  var vehicle = loadJSON(LS_VEHICLE, { driverName: "", bikeNumber: "", rcNumber: "", aadharNumber: "" });
+
+  var el = {
+    dateInput: document.getElementById("dateInput"),
+    morningInput: document.getElementById("morningInput"),
+    eveningInput: document.getElementById("eveningInput"),
+    autoBadge: document.getElementById("autoBadge"),
+    saveBtn: document.getElementById("saveBtn"),
+    formMsg: document.getElementById("formMsg"),
+    todayDisplay: document.getElementById("todayDisplay"),
+    lcdSince: document.getElementById("lcdSince"),
+    statTotal: document.getElementById("statTotal"),
+    statWeek: document.getElementById("statWeek"),
+    statStreak: document.getElementById("statStreak"),
+    statMonth: document.getElementById("statMonth"),
+    statAvg: document.getElementById("statAvg"),
+    statDays: document.getElementById("statDays"),
+    chartArea: document.getElementById("chartArea"),
+    historyArea: document.getElementById("historyArea"),
+    vehicleToggle: document.getElementById("vehicleToggle"),
+    vehicleCard: document.getElementById("vehicleCard"),
+    driverName: document.getElementById("driverName"),
+    bikeNumber: document.getElementById("bikeNumber"),
+    rcNumber: document.getElementById("rcNumber"),
+    aadharNumber: document.getElementById("aadharNumber"),
+    saveVehicleBtn: document.getElementById("saveVehicleBtn"),
+    vehicleMsg: document.getElementById("vehicleMsg"),
+    settingsToggle: document.getElementById("settingsToggle"),
+    settingsCard: document.getElementById("settingsCard"),
+    autoFillToggle: document.getElementById("autoFillToggle"),
+    exportBtn: document.getElementById("exportBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importFile: document.getElementById("importFile"),
+    settingsMsg: document.getElementById("settingsMsg"),
+  };
+
+  var autoFilled = false;
+
+  function sortedEntries() {
+    return entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  }
+
+  function withDistance() {
+    return sortedEntries().map(function (e) {
+      var hasBoth = e.morning != null && e.evening != null;
+      var distance = hasBoth ? round1(e.evening - e.morning) : null;
+      var status = hasBoth ? "done" : (e.morning != null ? "riding" : "pending");
+      return Object.assign({}, e, { distance: distance, status: status });
+    });
+  }
+
+  function render() {
+    var today = todayStr();
+    var wd = withDistance();
+    var todayEntry = wd.filter(function (e) { return e.date === today; })[0] || null;
+
+    var latestReading = null;
+    sortedEntries().forEach(function (e) {
+      if (e.evening != null) latestReading = latestReading == null ? e.evening : Math.max(latestReading, e.evening);
+      if (e.morning != null) latestReading = latestReading == null ? e.morning : Math.max(latestReading, e.morning);
+    });
+
+    if (todayEntry && todayEntry.distance != null) {
+      el.todayDisplay.style.fontSize = "";
+      el.todayDisplay.innerHTML = todayEntry.distance + '<span class="unit">km</span>';
+    } else if (todayEntry && todayEntry.status === "riding") {
+      el.todayDisplay.style.fontSize = "22px";
+      el.todayDisplay.innerHTML = 'Riding…<span class="unit">add evening reading</span>';
+    } else {
+      el.todayDisplay.style.fontSize = "22px";
+      el.todayDisplay.innerHTML = 'Not started<span class="unit">log a morning reading</span>';
+    }
+    el.lcdSince.textContent = latestReading != null ? ("latest odometer: " + latestReading + " km") : "no readings logged yet";
+
+    var completed = wd.filter(function (e) { return e.distance != null; });
+    var total = round1(completed.reduce(function (s, e) { return s + e.distance; }, 0));
+    var avg = completed.length ? round1(total / completed.length) : 0;
+
+    var now = new Date(today + "T00:00:00");
+    var week = 0, month = 0;
+    completed.forEach(function (e) {
+      var d = new Date(e.date + "T00:00:00");
+      var diffDays = Math.round((now - d) / 86400000);
+      if (diffDays >= 0 && diffDays < 7) week += e.distance;
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) month += e.distance;
+    });
+
+    var dateSet = {};
+    completed.forEach(function (e) { dateSet[e.date] = true; });
+    var streak = 0;
+    if (completed.length) {
+      var cursorDate = dateSet[today] ? today : completed[completed.length - 1].date;
+      var d2 = new Date(cursorDate + "T00:00:00");
+      while (dateSet[d2.toISOString().slice(0, 10)]) {
+        streak++;
+        d2.setDate(d2.getDate() - 1);
+      }
+    }
+
+    el.statTotal.textContent = total;
+    el.statWeek.textContent = round1(week);
+    el.statStreak.textContent = streak;
+    el.statMonth.textContent = round1(month);
+    el.statAvg.textContent = avg;
+    el.statDays.textContent = completed.length;
+
+    var chartData = completed.slice(-14);
+    if (chartData.length === 0) {
+      el.chartArea.innerHTML = '<div class="chart-empty">Log both readings to see your first bar.</div>';
+    } else {
+      var maxDelta = Math.max(1, Math.max.apply(null, chartData.map(function (e) { return Math.max(0, e.distance); })));
+      var barsHtml = '<div class="bars">' + chartData.map(function (e) {
+        var h = Math.max(2, (Math.max(0, e.distance) / maxDelta) * 100);
+        return '<div class="bar-col"><div class="bar" style="height:' + h + '%" title="' + e.distance + ' km"></div>' +
+          '<div class="bar-label">' + fmtDate(e.date).replace(" ", "") + '</div></div>';
+      }).join("") + '</div>';
+      el.chartArea.innerHTML = barsHtml;
+    }
+
+    if (wd.length === 0) {
+      el.historyArea.innerHTML = '<div class="empty-msg">No entries yet — your rides will show up here.</div>';
+    } else {
+      var rows = wd.slice().reverse().map(function (e) {
+        var readingText = (e.morning != null ? (e.morning + " km start") : "no start") + " · " + (e.evening != null ? (e.evening + " km end") : "no end");
+        var deltaText = e.status === "done" ? ((e.distance > 0 ? "+" : "") + e.distance) : e.status === "riding" ? "…" : "—";
+        return '<div class="h-row" data-date="' + e.date + '">' +
+          '<div><div class="h-date">' + fmtDate(e.date) + '</div><div class="h-reading mono">' + readingText + '</div></div>' +
+          '<div class="h-right"><div class="h-delta mono">' + deltaText + '</div>' +
+          '<button class="h-del" data-del="' + e.date + '" aria-label="Delete entry">✕</button></div></div>';
+      }).join("");
+      el.historyArea.innerHTML = '<div class="history-list">' + rows + '</div>';
+      Array.prototype.forEach.call(el.historyArea.querySelectorAll("[data-del]"), function (btn) {
+        btn.addEventListener("click", function () { handleDelete(btn.getAttribute("data-del")); });
+      });
+    }
+  }
+
+  function refillForm() {
+    var date = el.dateInput.value;
+    var existing = entries.filter(function (e) { return e.date === date; })[0];
+
+    if (existing && existing.morning != null) {
+      el.morningInput.value = existing.morning;
+      autoFilled = false;
+    } else if (settings.autoFillMorning) {
+      var prior = sortedEntries().slice().reverse().filter(function (e) { return e.date < date && e.evening != null; })[0];
+      if (prior) {
+        el.morningInput.value = prior.evening;
+        autoFilled = true;
+      } else {
+        el.morningInput.value = "";
+        autoFilled = false;
+      }
+    } else {
+      el.morningInput.value = "";
+      autoFilled = false;
+    }
+    el.eveningInput.value = existing && existing.evening != null ? existing.evening : "";
+    el.autoBadge.style.display = autoFilled ? "" : "none";
+  }
+
+  function handleSave() {
+    el.formMsg.textContent = "";
+    el.formMsg.className = "form-msg";
+    var date = el.dateInput.value;
+    if (!date) { el.formMsg.textContent = "Pick a date."; el.formMsg.className = "form-msg err"; return; }
+
+    var mRaw = el.morningInput.value.trim();
+    var eRaw = el.eveningInput.value.trim();
+    var m = mRaw === "" ? null : parseFloat(mRaw);
+    var ev = eRaw === "" ? null : parseFloat(eRaw);
+
+    if (m == null && ev == null) { el.formMsg.textContent = "Enter at least one reading."; el.formMsg.className = "form-msg err"; return; }
+    if (m != null && isNaN(m)) { el.formMsg.textContent = "Morning reading isn't a valid number."; el.formMsg.className = "form-msg err"; return; }
+    if (ev != null && isNaN(ev)) { el.formMsg.textContent = "Evening reading isn't a valid number."; el.formMsg.className = "form-msg err"; return; }
+    if (m != null && ev != null && ev < m) { el.formMsg.textContent = "Evening reading is lower than morning — check the numbers."; el.formMsg.className = "form-msg err"; return; }
+
+    var idx = -1;
+    for (var i = 0; i < entries.length; i++) { if (entries[i].date === date) { idx = i; break; } }
+
+    var updated = { date: date, morning: m, evening: ev };
+    if (idx >= 0) {
+      updated.morning = m != null ? m : entries[idx].morning;
+      updated.evening = ev != null ? ev : entries[idx].evening;
+      entries[idx] = updated;
+    } else {
+      entries.push(updated);
+    }
+
+    if (!saveJSON(LS_ENTRIES, entries)) {
+      el.formMsg.textContent = "Couldn't save — storage might be full.";
+      el.formMsg.className = "form-msg err";
+      return;
+    }
+
+    var both = updated.morning != null && updated.evening != null;
+    el.formMsg.textContent = both ? ("Saved — " + round1(updated.evening - updated.morning) + " km today.") : "Saved. Add the other reading when you're done riding.";
+    el.formMsg.className = "form-msg ok";
+    el.eveningInput.value = updated.evening != null ? updated.evening : "";
+    render();
+  }
+
+  function handleDelete(date) {
+    entries = entries.filter(function (e) { return e.date !== date; });
+    saveJSON(LS_ENTRIES, entries);
+    render();
+    refillForm();
+  }
+
+  function handleSaveVehicle() {
+    vehicle = {
+      driverName: el.driverName.value.trim(),
+      bikeNumber: el.bikeNumber.value.trim(),
+      rcNumber: el.rcNumber.value.trim(),
+      aadharNumber: el.aadharNumber.value.trim(),
+    };
+    var ok = saveJSON(LS_VEHICLE, vehicle);
+    el.vehicleMsg.textContent = ok ? "Saved." : "Couldn't save — try again.";
+    el.vehicleMsg.className = ok ? "form-msg ok" : "form-msg err";
+  }
+
+  function handleExport() {
+    var payload = { entries: entries, settings: settings, vehicle: vehicle, exportedAt: new Date().toISOString() };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "odo-log-backup-" + todayStr() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    el.settingsMsg.textContent = "Backup downloaded.";
+    el.settingsMsg.className = "form-msg ok";
+  }
+
+  function handleImportFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (!data || !Array.isArray(data.entries)) throw new Error("bad format");
+        entries = data.entries;
+        settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+        vehicle = data.vehicle || vehicle;
+        saveJSON(LS_ENTRIES, entries);
+        saveJSON(LS_SETTINGS, settings);
+        saveJSON(LS_VEHICLE, vehicle);
+        el.autoFillToggle.checked = !!settings.autoFillMorning;
+        el.driverName.value = vehicle.driverName || "";
+        el.bikeNumber.value = vehicle.bikeNumber || "";
+        el.rcNumber.value = vehicle.rcNumber || "";
+        el.aadharNumber.value = vehicle.aadharNumber || "";
+        render();
+        refillForm();
+        el.settingsMsg.textContent = "Backup restored.";
+        el.settingsMsg.className = "form-msg ok";
+      } catch (e) {
+        el.settingsMsg.textContent = "That file doesn't look like a valid backup.";
+        el.settingsMsg.className = "form-msg err";
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // wire up events
+  el.dateInput.value = todayStr();
+  el.dateInput.max = todayStr();
+  el.dateInput.addEventListener("change", refillForm);
+  el.morningInput.addEventListener("input", function () { autoFilled = false; el.autoBadge.style.display = "none"; });
+  el.saveBtn.addEventListener("click", handleSave);
+
+  el.driverName.value = vehicle.driverName || "";
+  el.bikeNumber.value = vehicle.bikeNumber || "";
+  el.rcNumber.value = vehicle.rcNumber || "";
+  el.aadharNumber.value = vehicle.aadharNumber || "";
+  el.saveVehicleBtn.addEventListener("click", handleSaveVehicle);
+  el.vehicleToggle.addEventListener("click", function () {
+    var open = el.vehicleCard.style.display !== "none";
+    el.vehicleCard.style.display = open ? "none" : "";
+    el.vehicleToggle.textContent = "Vehicle & Driver Details " + (open ? "▾" : "▴");
+  });
+
+  el.autoFillToggle.checked = !!settings.autoFillMorning;
+  el.autoFillToggle.addEventListener("change", function () {
+    settings.autoFillMorning = el.autoFillToggle.checked;
+    saveJSON(LS_SETTINGS, settings);
+    refillForm();
+  });
+  el.settingsToggle.addEventListener("click", function () {
+    var open = el.settingsCard.style.display !== "none";
+    el.settingsCard.style.display = open ? "none" : "";
+    el.settingsToggle.textContent = "Settings " + (open ? "▾" : "▴");
+  });
+  el.exportBtn.addEventListener("click", handleExport);
+  el.importBtn.addEventListener("click", function () { el.importFile.click(); });
+  el.importFile.addEventListener("change", function () {
+    if (el.importFile.files && el.importFile.files[0]) handleImportFile(el.importFile.files[0]);
+    el.importFile.value = "";
+  });
+
+  render();
+  refillForm();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
