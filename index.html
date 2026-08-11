@@ -385,6 +385,10 @@
     var d = new Date(dstr + "T00:00:00");
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
+  function fmtTime(ms) {
+    if (ms == null) return "";
+    return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
   function round1(n) { return Math.round(n * 10) / 10; }
   function genId() { return "id_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
 
@@ -931,6 +935,7 @@
   var gpsMap = null;
   var gpsPolyline = null;
   var gpsMarker = null;
+  var routePointMarkers = [];
   var wakeLock = null;
   var lastSavedGpsDistance = 0;
 
@@ -1040,7 +1045,7 @@
       var bike = activeBike();
       var date = todayStr();
       var existing = bike.routes[date] || [];
-      bike.routes[date] = existing.concat(gpsPoints.map(function (p) { return [round6(p.lat), round6(p.lng)]; }));
+      bike.routes[date] = existing.concat(gpsPoints.map(function (p) { return [round6(p.lat), round6(p.lng), p.t]; }));
       persistBikes();
       lastSavedGpsDistance = round1(gpsDistanceKm);
       el.gpsStatus.textContent = "Ride saved — " + lastSavedGpsDistance + " km recorded for today's route.";
@@ -1070,6 +1075,14 @@
     document.getElementById("saveBtn").scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  function routeDistanceKm(pts) {
+    var total = 0;
+    for (var i = 1; i < pts.length; i++) {
+      total += haversineKm(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+    }
+    return total;
+  }
+
   function renderRoutePicker(bike) {
     var dates = Object.keys(bike.routes || {}).sort().reverse();
     if (dates.length === 0) {
@@ -1078,7 +1091,15 @@
     }
     el.routePickerWrap.style.display = "";
     el.routeDateSelect.innerHTML = '<option value="">Select a date…</option>' +
-      dates.map(function (d) { return '<option value="' + d + '">' + fmtDate(d) + '</option>'; }).join("");
+      dates.map(function (d) {
+        var pts = bike.routes[d];
+        var distKm = round1(routeDistanceKm(pts));
+        var times = pts.map(function (p) { return p[2]; }).filter(function (t) { return t != null; });
+        var label = fmtDate(d);
+        if (times.length) label += " · " + fmtTime(Math.min.apply(null, times)) + "–" + fmtTime(Math.max.apply(null, times));
+        label += " · " + distKm + " km";
+        return '<option value="' + d + '">' + label + '</option>';
+      }).join("");
   }
 
   function handleViewRoute() {
@@ -1091,9 +1112,23 @@
     var latlngs = pts.map(function (p) { return [p[0], p[1]]; });
     gpsPolyline.setLatLngs(latlngs);
     if (gpsMarker) { gpsMap.removeLayer(gpsMarker); gpsMarker = null; }
+
+    routePointMarkers.forEach(function (m) { gpsMap.removeLayer(m); });
+    routePointMarkers = pts.map(function (p, i) {
+      var color = i === 0 ? "#9de88a" : (i === pts.length - 1 ? "#e2604f" : "#f5a742");
+      var marker = L.circleMarker([p[0], p[1]], { radius: 4, color: color, fillColor: color, fillOpacity: 0.9, weight: 1 }).addTo(gpsMap);
+      if (p[2] != null) marker.bindPopup(fmtTime(p[2]));
+      return marker;
+    });
+
     gpsMap.fitBounds(gpsPolyline.getBounds(), { padding: [20, 20] });
-    el.gpsStatus.textContent = "Showing saved route from " + fmtDate(date) + ".";
+
+    var distKm = round1(routeDistanceKm(pts));
+    var times = pts.map(function (p) { return p[2]; }).filter(function (t) { return t != null; });
+    var timeRange = times.length ? (" · " + fmtTime(Math.min.apply(null, times)) + " – " + fmtTime(Math.max.apply(null, times))) : "";
+    el.gpsStatus.textContent = "Showing route from " + fmtDate(date) + timeRange + " · " + distKm + " km. Tap any point for its time.";
   }
+
 
   // ---------- wire up ----------
   el.dateInput.value = todayStr();
