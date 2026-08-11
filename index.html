@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#12160f" />
 <meta name="description" content="Track your bike's daily distance, fuel mileage, and service schedule." />
 <link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="icon" href="icon-192.png" />
 <link rel="apple-touch-icon" href="icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -157,6 +158,15 @@
 
   #importFile { display: none; }
 
+  .gps-live-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .gps-live-card { background: var(--bg); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .gps-live-card .v { font-size: 18px; font-weight: 700; color: var(--lcd-glow); }
+  .gps-live-card .l { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+  #rideMap { width: 100%; height: 220px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--panel-line); background: var(--bg); }
+  .gps-status { font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 8px; line-height: 1.5; }
+  .gps-status.warn { color: var(--danger); }
+  .route-picker { margin-top: 12px; }
+
   @media print {
     body * { visibility: hidden; }
     #printArea, #printArea * { visibility: visible; }
@@ -204,6 +214,26 @@
 
   <div class="section-title">Last 14 days</div>
   <div class="chart-card"><div id="chartArea"><div class="chart-empty">Log both readings to see your first bar.</div></div></div>
+
+  <div class="section-title">GPS Ride Tracking</div>
+  <div class="form-card">
+    <div class="gps-live-row">
+      <div class="gps-live-card"><div id="gpsDistance" class="v mono">0.0</div><div class="l">km this ride</div></div>
+      <div class="gps-live-card"><div id="gpsTime" class="v mono">00:00</div><div class="l">elapsed</div></div>
+    </div>
+    <button id="gpsToggleBtn" class="btn btn-primary">Start ride</button>
+    <div id="gpsStatus" class="gps-status">Keep this tab open and your screen on while riding — tracking pauses if you switch apps or lock your phone.</div>
+    <div id="rideMap" style="display:none"></div>
+    <div id="gpsSaveRow" style="display:none" class="btn-row">
+      <button id="gpsSaveBtn" class="btn btn-secondary">Add this to today's evening reading</button>
+    </div>
+    <div class="route-picker" id="routePickerWrap" style="display:none">
+      <div class="field" style="margin-bottom:0">
+        <label for="routeDateSelect">View a past route</label>
+        <select id="routeDateSelect"></select>
+      </div>
+    </div>
+  </div>
 
   <div class="section-title">Log a reading</div>
   <div class="form-card">
@@ -329,6 +359,7 @@
 <!-- Hidden print-only report, filled in just before printing -->
 <div id="printArea" style="display:none"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
   "use strict";
@@ -405,6 +436,7 @@
     if (!b) { b = bikes[0]; activeBikeId = b.id; }
     if (!b.fuel) b.fuel = [];
     if (!b.service) b.service = Object.assign({}, DEFAULT_SERVICE);
+    if (!b.routes) b.routes = {};
     return b;
   }
   function persistBikes() { saveJSON(LS_BIKES, bikes); }
@@ -419,7 +451,8 @@
    "serviceToggle","serviceCard","serviceInterval","serviceLastOdo","serviceLastDate","saveServiceBtn","logServiceNowBtn","serviceMsg",
    "vehicleToggle","vehicleCard","driverName","bikeNumber","rcNumber","aadharNumber","saveVehicleBtn","vehicleMsg",
    "settingsToggle","settingsCard","autoFillToggle","bikeManageList","exportBtn","importBtn","importFile","exportPdfBtn","settingsMsg",
-   "printArea"
+   "printArea",
+   "gpsDistance","gpsTime","gpsToggleBtn","gpsStatus","rideMap","gpsSaveRow","gpsSaveBtn","routePickerWrap","routeDateSelect"
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   var autoFilled = false;
@@ -555,6 +588,7 @@
     renderService(bike, latest);
     renderBikeSelect();
     renderBikeManageList();
+    renderRoutePicker(bike);
   }
 
   // ---------- morning/evening form ----------
@@ -888,6 +922,179 @@
     setTimeout(function () { el.printArea.style.display = "none"; }, 500);
   }
 
+  // ---------- GPS ride tracking ----------
+  var gpsWatchId = null;
+  var gpsPoints = []; // {lat, lng, t}
+  var gpsDistanceKm = 0;
+  var gpsStartTime = null;
+  var gpsTimerInterval = null;
+  var gpsMap = null;
+  var gpsPolyline = null;
+  var gpsMarker = null;
+  var wakeLock = null;
+  var lastSavedGpsDistance = 0;
+
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function ensureMap() {
+    if (gpsMap || typeof L === "undefined") return;
+    el.rideMap.style.display = "block";
+    gpsMap = L.map("rideMap", { zoomControl: false, attributionControl: true }).setView([20.5937, 78.9629], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(gpsMap);
+    gpsPolyline = L.polyline([], { color: "#f5a742", weight: 4 }).addTo(gpsMap);
+  }
+
+  function updateGpsTimer() {
+    if (!gpsStartTime) return;
+    var secs = Math.floor((Date.now() - gpsStartTime) / 1000);
+    var mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    var ss = String(secs % 60).padStart(2, "0");
+    el.gpsTime.textContent = mm + ":" + ss;
+  }
+
+  function handleGpsPosition(pos) {
+    var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
+    if (acc != null && acc > 40) return; // ignore low-accuracy noise
+
+    ensureMap();
+    var point = { lat: lat, lng: lng, t: Date.now() };
+
+    if (gpsPoints.length > 0) {
+      var last = gpsPoints[gpsPoints.length - 1];
+      var segKm = haversineKm(last.lat, last.lng, lat, lng);
+      var elapsedH = (point.t - last.t) / 3600000;
+      var speedKmh = elapsedH > 0 ? segKm / elapsedH : 0;
+      // ignore GPS jumps that imply an unrealistic speed (signal glitch)
+      if (segKm > 0.005 && speedKmh < 150) {
+        gpsDistanceKm += segKm;
+        gpsPoints.push(point);
+      }
+    } else {
+      gpsPoints.push(point);
+    }
+
+    el.gpsDistance.textContent = round1(gpsDistanceKm);
+    if (gpsMap) {
+      var latlngs = gpsPoints.map(function (p) { return [p.lat, p.lng]; });
+      gpsPolyline.setLatLngs(latlngs);
+      if (!gpsMarker) gpsMarker = L.circleMarker([lat, lng], { radius: 6, color: "#9de88a" }).addTo(gpsMap);
+      else gpsMarker.setLatLng([lat, lng]);
+      gpsMap.setView([lat, lng], gpsMap.getZoom() < 14 ? 16 : gpsMap.getZoom());
+    }
+  }
+
+  function handleGpsError(err) {
+    el.gpsStatus.textContent = "GPS error: " + (err && err.message ? err.message : "couldn't get your location") + ". Check location permission for this site.";
+    el.gpsStatus.className = "gps-status warn";
+  }
+
+  function startRide() {
+    if (!("geolocation" in navigator)) {
+      el.gpsStatus.textContent = "This browser doesn't support GPS tracking.";
+      el.gpsStatus.className = "gps-status warn";
+      return;
+    }
+    if (!window.isSecureContext) {
+      el.gpsStatus.textContent = "GPS tracking needs HTTPS. This works once deployed on GitHub Pages.";
+      el.gpsStatus.className = "gps-status warn";
+      return;
+    }
+    gpsPoints = [];
+    gpsDistanceKm = 0;
+    gpsStartTime = Date.now();
+    el.gpsDistance.textContent = "0.0";
+    el.gpsTime.textContent = "00:00";
+    el.gpsStatus.textContent = "Tracking… keep this tab open and your screen on.";
+    el.gpsStatus.className = "gps-status";
+    el.gpsSaveRow.style.display = "none";
+    el.gpsToggleBtn.textContent = "Stop ride";
+
+    if ("wakeLock" in navigator) {
+      navigator.wakeLock.request("screen").then(function (lock) { wakeLock = lock; }).catch(function () {});
+    }
+
+    gpsWatchId = navigator.geolocation.watchPosition(handleGpsPosition, handleGpsError, {
+      enableHighAccuracy: true, maximumAge: 0, timeout: 15000,
+    });
+    gpsTimerInterval = setInterval(updateGpsTimer, 1000);
+  }
+
+  function stopRide() {
+    if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    if (gpsTimerInterval) { clearInterval(gpsTimerInterval); gpsTimerInterval = null; }
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+    el.gpsToggleBtn.textContent = "Start ride";
+
+    if (gpsPoints.length > 1 && gpsDistanceKm > 0) {
+      var bike = activeBike();
+      var date = todayStr();
+      var existing = bike.routes[date] || [];
+      bike.routes[date] = existing.concat(gpsPoints.map(function (p) { return [round6(p.lat), round6(p.lng)]; }));
+      persistBikes();
+      lastSavedGpsDistance = round1(gpsDistanceKm);
+      el.gpsStatus.textContent = "Ride saved — " + lastSavedGpsDistance + " km recorded for today's route.";
+      el.gpsSaveRow.style.display = "";
+    } else {
+      el.gpsStatus.textContent = "Not enough GPS data was recorded to save this ride.";
+    }
+    render();
+  }
+
+  function round6(n) { return Math.round(n * 1e6) / 1e6; }
+
+  function handleGpsToggle() {
+    if (gpsWatchId == null) startRide(); else stopRide();
+  }
+
+  function handleGpsSaveToEntry() {
+    var m = parseFloat(el.morningInput.value);
+    if (isNaN(m)) {
+      el.gpsStatus.textContent = "Enter today's morning reading first, then tap this again.";
+      el.gpsStatus.className = "gps-status warn";
+      return;
+    }
+    el.eveningInput.value = round1(m + lastSavedGpsDistance);
+    el.gpsStatus.textContent = "Evening reading filled in below — review and tap Save.";
+    el.gpsSaveRow.style.display = "none";
+    document.getElementById("saveBtn").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function renderRoutePicker(bike) {
+    var dates = Object.keys(bike.routes || {}).sort().reverse();
+    if (dates.length === 0) {
+      el.routePickerWrap.style.display = "none";
+      return;
+    }
+    el.routePickerWrap.style.display = "";
+    el.routeDateSelect.innerHTML = '<option value="">Select a date…</option>' +
+      dates.map(function (d) { return '<option value="' + d + '">' + fmtDate(d) + '</option>'; }).join("");
+  }
+
+  function handleViewRoute() {
+    var date = el.routeDateSelect.value;
+    if (!date) return;
+    var bike = activeBike();
+    var pts = bike.routes[date];
+    if (!pts || pts.length === 0) return;
+    ensureMap();
+    var latlngs = pts.map(function (p) { return [p[0], p[1]]; });
+    gpsPolyline.setLatLngs(latlngs);
+    if (gpsMarker) { gpsMap.removeLayer(gpsMarker); gpsMarker = null; }
+    gpsMap.fitBounds(gpsPolyline.getBounds(), { padding: [20, 20] });
+    el.gpsStatus.textContent = "Showing saved route from " + fmtDate(date) + ".";
+  }
+
   // ---------- wire up ----------
   el.dateInput.value = todayStr();
   el.dateInput.max = todayStr();
@@ -939,6 +1146,10 @@
   el.bikeSelect.addEventListener("change", handleSwitchBike);
   el.addBikeBtn.addEventListener("click", handleAddBike);
   el.themeToggle.addEventListener("click", handleToggleTheme);
+
+  el.gpsToggleBtn.addEventListener("click", handleGpsToggle);
+  el.gpsSaveBtn.addEventListener("click", handleGpsSaveToEntry);
+  el.routeDateSelect.addEventListener("change", handleViewRoute);
 
   applyTheme();
   render();
