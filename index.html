@@ -266,14 +266,6 @@
       <label for="fuelDate">Date</label>
       <input id="fuelDate" type="date" />
     </div>
-  <div class="field">
-      <label for="fuelOdo">Odometer at fill-up (km)</label>
-      <input id="fuelOdo" type="number" inputmode="decimal" placeholder="current odometer reading" />
-    </div>
-    <div class="field">
-      <label for="fuelLiters">Fuel added (litres)</label>
-      <input id="fuelLiters" type="number" inputmode="decimal" placeholder="e.g. 4.2" />
-    </div> 
     <div class="field">
       <label for="fuelCost">Cost (₹)</label>
       <input id="fuelCost" type="number" inputmode="decimal" placeholder="e.g. 450" />
@@ -676,16 +668,14 @@
     var totalLiters = logs.reduce(function (s, f) { return s + (f.liters || 0); }, 0);
 
     el.fuelStats.innerHTML =
-      '<div class="stat-card"><div class="v mono">' + (avgMileage != null ? avgMileage : "—") + '</div><div class="l">Avg km/l</div></div>' +
-      '<div class="stat-card"><div class="v mono">₹' + Math.round(totalCost) + '</div><div class="l">Total spent</div></div>' +
-      '<div class="stat-card"><div class="v mono">' + round1(totalLiters) + '</div><div class="l">Litres total</div></div>';
+  '<div class="stat-card"><div class="v mono">₹' + Math.round(totalCost) + '</div><div class="l">Total spent</div></div>';
 
     if (withMileage.length === 0) {
       el.fuelHistory.innerHTML = '<div class="empty-msg">No fuel entries yet.</div>';
     } else {
       el.fuelHistory.innerHTML = '<div class="history-list">' + withMileage.slice().reverse().map(function (f) {
         return '<div class="h-row"><div><div class="h-date">' + fmtDate(f.date) + '</div>' +
-          '<div class="h-reading mono">' + f.liters + ' L · ₹' + f.cost + ' · ' + f.odometer + ' km</div></div>' +
+          '<div class="h-reading mono"> ₹' + f.cost  ' </div></div>' +
           '<div class="h-right"><div class="h-delta mono">' + (f.mileage != null ? (f.mileage + " km/l") : "—") + '</div>' +
           '<button class="h-del" data-delfuel="' + f.id + '" aria-label="Delete">✕</button></div></div>';
       }).join("") + '</div>';
@@ -698,29 +688,31 @@
       });
     }
 
-    if (!el.fuelOdo.value && latest != null) el.fuelOdo.value = latest;
+  
     if (!el.fuelDate.value) el.fuelDate.value = todayStr();
   }
-
-  function handleSaveFuel() {
-    el.fuelMsg.textContent = ""; el.fuelMsg.className = "form-msg";
-    var date = el.fuelDate.value || todayStr();
-    var odo = parseFloat(el.fuelOdo.value);
-    var liters = parseFloat(el.fuelLiters.value);
-    var cost = parseFloat(el.fuelCost.value);
- if (isNaN(odo) || isNaN(liters) || liters <= 0) {
-    el.fuelMsg.textContent = "Enter a valid odometer reading and litres.";
-      el.fuelMsg.className = "form-msg err";
-     return;
-    }
-    var bike = activeBike();
-    bike.fuel.push({ id: genId(), date: date, odometer: odo, liters: round1(liters), cost: isNaN(cost) ? 0 : round1(cost) });
-    persistBikes();
-    el.fuelLiters.value = ""; el.fuelCost.value = "";
-    el.fuelMsg.textContent = "Fuel entry added.";
-    el.fuelMsg.className = "form-msg ok";
-    render();
+function handleSaveFuel() {
+  el.fuelMsg.textContent = "";
+  el.fuelMsg.className = "form-msg";
+  var date = el.fuelDate.value || todayStr();
+  var cost = parseFloat(el.fuelCost.value);
+  if (isNaN(cost) || cost <= 0) {
+    el.fuelMsg.textContent = "Enter a valid fuel cost.";
+    el.fuelMsg.className = "form-msg err";
+    return;
   }
+  var bike = activeBike();
+  bike.fuel.push({
+    id: genId(),
+    date: date,
+    cost: round1(cost)
+  });
+  persistBikes();
+  el.fuelCost.value = "";
+  el.fuelMsg.textContent = "Fuel cost added.";
+  el.fuelMsg.className = "form-msg ok";
+  render();
+}
 
   // ---------- service reminders ----------
   function renderService(bike, latest) {
