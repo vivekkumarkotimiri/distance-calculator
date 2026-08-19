@@ -266,14 +266,14 @@
       <label for="fuelDate">Date</label>
       <input id="fuelDate" type="date" />
     </div>
-<!--  <div class="field">
+  <div class="field">
       <label for="fuelOdo">Odometer at fill-up (km)</label>
       <input id="fuelOdo" type="number" inputmode="decimal" placeholder="current odometer reading" />
     </div>
     <div class="field">
       <label for="fuelLiters">Fuel added (litres)</label>
       <input id="fuelLiters" type="number" inputmode="decimal" placeholder="e.g. 4.2" />
-    </div> -->
+    </div> 
     <div class="field">
       <label for="fuelCost">Cost (₹)</label>
       <input id="fuelCost" type="number" inputmode="decimal" placeholder="e.g. 450" />
@@ -705,14 +705,14 @@
   function handleSaveFuel() {
     el.fuelMsg.textContent = ""; el.fuelMsg.className = "form-msg";
     var date = el.fuelDate.value || todayStr();
-   // var odo = parseFloat(el.fuelOdo.value);
-    //var liters = parseFloat(el.fuelLiters.value);
+    var odo = parseFloat(el.fuelOdo.value);
+    var liters = parseFloat(el.fuelLiters.value);
     var cost = parseFloat(el.fuelCost.value);
-  //  if (isNaN(odo) || isNaN(liters) || liters <= 0) {
-      //el.fuelMsg.textContent = "Enter a valid odometer reading and litres.";
-    //  el.fuelMsg.className = "form-msg err";
-     // return;
-   // }
+ if (isNaN(odo) || isNaN(liters) || liters <= 0) {
+    el.fuelMsg.textContent = "Enter a valid odometer reading and litres.";
+      el.fuelMsg.className = "form-msg err";
+     return;
+    }
     var bike = activeBike();
     bike.fuel.push({ id: genId(), date: date, odometer: odo, liters: round1(liters), cost: isNaN(cost) ? 0 : round1(cost) });
     persistBikes();
