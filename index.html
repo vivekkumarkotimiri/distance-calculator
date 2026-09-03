@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Bike Distance Tracker</title>
+<meta name="theme-color" content="#12160f" />
+<meta name="description" content="Track your bike's daily distance, fuel mileage, and service schedule." />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+  :root {
+    --bg: #12160f;
+    --panel: #1c221a;
+    --panel-line: #2b3327;
+    --lcd-glow: #9de88a;
+    --lcd-dim: #4d6b45;
+    --amber: #f5a742;
+    --amber-dim: #7a5827;
+    --text: #eae7dc;
+    --text-dim: #93998c;
+    --danger: #e2604f;
+  }
+  html[data-theme="light"] {
+    --bg: #f4f1e9;
+    --panel: #ffffff;
+    --panel-line: #ded8c6;
+    --lcd-glow: #2f7a34;
+    --lcd-dim: #6c8a63;
+    --amber: #b9791e;
+    --amber-dim: #e3c99a;
+    --text: #22261d;
+    --text-dim: #6b7062;
+    --danger: #c74836;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background .15s ease, color .15s ease;
+  }
+  .mono { font-family: "SF Mono", "Roboto Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 460px; margin: 0 auto; padding: 18px 16px 56px; }
+
+  .header { display: flex; align-items: center; gap: 10px; padding: 4px 2px 14px; }
+  .header-icon { width: 34px; height: 34px; flex: none; border-radius: 8px; object-fit: cover; }
+  .header h1 { font-size: 17px; letter-spacing: 0.08em; font-weight: 700; margin: 0; }
+  .header .sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+  .header-spacer { flex: 1; }
+  .icon-btn { background: var(--panel); border: 1px solid var(--panel-line); color: var(--text); width: 36px; height: 36px; border-radius: 9px; font-size: 16px; cursor: pointer; flex: none; }
+
+  .bike-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .bike-select { flex: 1; background: var(--panel); border: 1px solid var(--panel-line); color: var(--text); border-radius: 9px; padding: 10px 10px; font-size: 13px; font-weight: 600; }
+  .bike-add-btn { background: var(--panel); border: 1px solid var(--panel-line); color: var(--amber); width: 40px; border-radius: 9px; font-size: 18px; font-weight: 700; cursor: pointer; }
+
+  .lcd {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 85%, var(--lcd-glow) 15%) 0%, var(--panel) 100%);
+    border: 1px solid var(--panel-line);
+    border-radius: 14px;
+    padding: 20px 20px 18px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 2px 12px rgba(0,0,0,0.15);
+  }
+  .lcd-label { font-size: 10px; letter-spacing: 0.18em; color: var(--lcd-dim); text-transform: uppercase; font-weight: 700; }
+  .lcd-total { font-size: 42px; font-weight: 700; color: var(--lcd-glow); line-height: 1.05; margin: 4px 0 2px; }
+  .lcd-total .unit { font-size: 15px; color: var(--lcd-dim); margin-left: 8px; font-weight: 600; }
+  .lcd-since { font-size: 11px; color: var(--lcd-dim); }
+  .lcd-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--panel-line); }
+  .lcd-mini .v { font-size: 19px; font-weight: 700; color: var(--lcd-glow); }
+  .lcd-mini .l { font-size: 9px; color: var(--lcd-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .stat-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .stat-card .v { font-size: 16px; font-weight: 700; color: var(--amber); }
+  .stat-card .l { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+
+  .section-title { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin: 26px 2px 10px; }
+
+  .chart-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 14px 12px 8px; }
+  .chart-empty { color: var(--text-dim); font-size: 12px; text-align: center; padding: 20px 0; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 90px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .bar { width: 100%; max-width: 18px; background: var(--amber); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .bar-label { font-size: 8px; color: var(--text-dim); margin-top: 5px; white-space: nowrap; }
+
+  .form-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .field label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+  .field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 12px; color: var(--text); font-size: 16px; outline: none; }
+  .field input:focus, .field select:focus { border-color: var(--amber-dim); }
+  .auto-badge { font-size: 9px; color: var(--amber); background: color-mix(in srgb, var(--amber) 15%, transparent); border: 1px solid var(--amber-dim); border-radius: 999px; padding: 3px 8px; white-space: nowrap; font-weight: 600; }
+
+  .btn { width: 100%; padding: 13px; border-radius: 9px; border: none; font-size: 14px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
+  .btn-primary { background: var(--amber); color: #201705; }
+  html[data-theme="light"] .btn-primary { color: #fff; }
+  .btn-primary:disabled { background: var(--amber-dim); color: #7a6a45; cursor: not-allowed; }
+  .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--panel-line); }
+  .btn-danger { background: var(--bg); color: var(--danger); border: 1px solid var(--danger); }
+  .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+  .btn-row .btn { margin-top: 0; }
+  .form-msg { font-size: 11px; margin-top: 8px; text-align: center; }
+  .form-msg.err { color: var(--danger); }
+  .form-msg.ok { color: var(--lcd-glow); }
+
+  .collapse-toggle { width: 100%; background: none; border: none; color: var(--text-dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 14px 4px 6px; text-align: left; cursor: pointer; }
+  .settings-card { margin-top: 4px; }
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .setting-title { font-size: 13px; font-weight: 600; }
+  .setting-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+  .setting-row + .setting-row { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--panel-line); }
+
+  .switch { flex: none; position: relative; display: inline-block; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch-track { display: block; width: 42px; height: 24px; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 999px; position: relative; }
+  .switch-thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: var(--text-dim); border-radius: 50%; transition: transform .15s ease, background .15s ease; }
+  .switch input:checked + .switch-track { background: color-mix(in srgb, var(--amber) 18%, transparent); border-color: var(--amber-dim); }
+  .switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); background: var(--amber); }
+
+  .privacy-note { font-size: 10.5px; color: var(--text-dim); line-height: 1.5; background: var(--bg); border: 1px solid var(--panel-line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .privacy-note b { color: var(--text); }
+
+  .history-list { display: flex; flex-direction: column; gap: 6px; }
+  .h-row { display: flex; align-items: center; justify-content: space-between; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 12px; }
+  .h-date { font-size: 13px; font-weight: 600; }
+  .h-reading { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .h-right { display: flex; align-items: center; gap: 10px; }
+  .h-delta { font-size: 14px; font-weight: 700; color: var(--lcd-glow); min-width: 52px; text-align: right; }
+  .h-del { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; padding: 4px 6px; }
+  .h-del:active { color: var(--danger); }
+  .empty-msg { color: var(--text-dim); font-size: 12px; text-align: center; padding: 24px 0; }
+
+  .badge-pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.03em; }
+  .badge-ok { background: color-mix(in srgb, var(--lcd-glow) 18%, transparent); color: var(--lcd-glow); }
+  .badge-warn { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+  .badge-due { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+
+  .records-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .record-card { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 12px; }
+  .record-card .v { font-size: 18px; font-weight: 700; color: var(--lcd-glow); }
+  .record-card .l { font-size: 9.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px; }
+  .record-card .d { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  .bike-manage-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--panel-line); }
+  .bike-manage-row:last-child { border-bottom: none; }
+  .bike-manage-name { font-size: 13px; font-weight: 600; }
+  .bike-manage-actions { display: flex; gap: 6px; }
+  .mini-btn { background: var(--bg); border: 1px solid var(--panel-line); color: var(--text-dim); font-size: 11px; padding: 6px 9px; border-radius: 7px; cursor: pointer; }
+  .mini-btn.danger { color: var(--danger); }
+
+  #importFile { display: none; }
+
+  .gps-live-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .gps-live-card { background: var(--bg); border: 1px solid var(--panel-line); border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .gps-live-card .v { font-size: 18px; font-weight: 700; color: var(--lcd-glow); }
+  .gps-live-card .l { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+  #rideMap { width: 100%; height: 220px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--panel-line); background: var(--bg); }
+  .gps-status { font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 8px; line-height: 1.5; }
+  .gps-status.warn { color: var(--danger); }
+  .route-picker { margin-top: 12px; }
+
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; }
+    .wrap > *:not(#printArea) { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <img src="icon-192.png" alt="Bike Distance Tracker logo" class="header-icon" width="34" height="34" />
+    <div>
+      <h1>Bike Distance Tracker</h1>
+      <div class="sub" id="headerSub">Morning start · evening finish</div>
+    </div>
+    <div class="header-spacer"></div>
+    <button class="icon-btn" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+
+  <div class="bike-bar">
+    <select id="bikeSelect" class="bike-select"></select>
+    <button class="bike-add-btn" id="addBikeBtn" title="Add bike">+</button>
+  </div>
+
+  <div class="lcd">
+    <div class="lcd-label">Today's Distance</div>
+    <div id="todayDisplay" class="lcd-total mono">—</div>
+    <div id="lcdSince" class="lcd-since">no readings logged yet</div>
+    <div class="lcd-row">
+      <div class="lcd-mini"><div id="statTotal" class="v mono">0</div><div class="l">Total km</div></div>
+      <div class="lcd-mini"><div id="statWeek" class="v mono">0</div><div class="l">This week</div></div>
+      <div class="lcd-mini"><div id="statStreak" class="v mono">0</div><div class="l">Day streak</div></div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div id="statMonth" class="v mono">0</div><div class="l">This month</div></div>
+    <div class="stat-card"><div id="statAvg" class="v mono">0</div><div class="l">Avg / day</div></div>
+    <div class="stat-card"><div id="statDays" class="v mono">0</div><div class="l">Rides logged</div></div>
+  </div>
+
+  <div id="serviceBanner"></div>
+
+  <div class="section-title">Last 14 days</div>
+  <div class="chart-card"><div id="chartArea"><div class="chart-empty">Log both readings to see your first bar.</div></div></div>
+
+ <!-- <div class="section-title">GPS Ride Tracking</div>
+  <div class="form-card">
+    <div class="gps-live-row">
+      <div class="gps-live-card"><div id="gpsDistance" class="v mono">0.0</div><div class="l">km this ride</div></div>
+      <div class="gps-live-card"><div id="gpsTime" class="v mono">00:00</div><div class="l">elapsed</div></div>
+      <div class="gps-live-card"><div id="gpsNow" class="v mono">—</div><div class="l">time now</div></div>
+    </div>
+    <button id="gpsToggleBtn" class="btn btn-primary">Start ride</button>
+    <div id="gpsStatus" class="gps-status">Keep this tab open and your screen on while riding — tracking pauses if you switch apps or lock your phone.</div>
+    <div id="rideMap" style="display:none"></div>
+    <div id="gpsSaveRow" style="display:none" class="btn-row">
+      <button id="gpsSaveBtn" class="btn btn-secondary">Add this to today's evening reading</button>
+    </div>
+    <div class="route-picker" id="routePickerWrap" style="display:none">
+      <div class="field" style="margin-bottom:0">
+        <label for="routeDateSelect">View a past route</label>
+        <select id="routeDateSelect"></select>
+      </div>
+    </div>
+  </div>-->
+
+  <div class="section-title">Log a reading</div>
+  <div class="form-card">
+    <div class="field">
+      <label for="dateInput">Date</label>
+      <input id="dateInput" type="date" />
+    </div>
+    <div class="field">
+      <div class="field-label-row">
+        <label style="margin-bottom:0" for="morningInput">Morning start (km)</label>
+        <span id="autoBadge" class="auto-badge" style="display:none">carried over from yesterday</span>
+      </div>
+      <input id="morningInput" type="number" inputmode="decimal" placeholder="odometer before riding" />
+    </div>
+    <div class="field">
+      <label for="eveningInput">Evening finish (km)</label>
+      <input id="eveningInput" type="number" inputmode="decimal" placeholder="odometer after riding" />
+    </div>
+    <button id="saveBtn" class="btn btn-primary">Save</button>
+    <div id="formMsg" class="form-msg"></div>
+  </div>
+
+  <div class="section-title">Insights &amp; records</div>
+  <div class="records-grid" id="recordsGrid"></div>
+
+  <button class="collapse-toggle" id="fuelToggle">Fuel Cost ▾</button>
+  <div class="form-card settings-card" id="fuelCard" style="display:none">
+    <div class="field">
+      <label for="fuelDate">Date</label>
+      <input id="fuelDate" type="date" />
+    </div>
+    <div class="field">
+      <label for="fuelCost">Cost (₹)</label>
+      <input id="fuelCost" type="number" inputmode="decimal" placeholder="e.g. 450" />
+    </div>
+    <button id="saveFuelBtn" class="btn btn-primary">Add fuel entry</button>
+    <div id="fuelMsg" class="form-msg"></div>
+    <div id="fuelStats" class="stats-row" style="margin-top:14px"></div>
+    <div id="fuelHistory" style="margin-top:12px"></div>
+  </div>
+
+  <button class="collapse-toggle" id="serviceToggle">Service Reminder ▾</button>
+  <div class="form-card settings-card" id="serviceCard" style="display:none">
+    <div class="field">
+      <label for="serviceInterval">Service interval (km)</label>
+      <input id="serviceInterval" type="number" inputmode="numeric" placeholder="e.g. 3000" />
+    </div>
+    <div class="field">
+      <label for="serviceLastOdo">Odometer at last service (km)</label>
+      <input id="serviceLastOdo" type="number" inputmode="decimal" placeholder="e.g. 12500" />
+    </div>
+    <div class="field">
+      <label for="serviceLastDate">Date of last service</label>
+      <input id="serviceLastDate" type="date" />
+    </div>
+    <div class="btn-row">
+      <button id="saveServiceBtn" class="btn btn-primary">Save</button>
+      <button id="logServiceNowBtn" class="btn btn-secondary">Log service done today</button>
+    </div>
+    <div id="serviceMsg" class="form-msg"></div>
+  </div>
+
+  <button class="collapse-toggle" id="vehicleToggle">Vehicle &amp; Driver Details ▾</button>
+  <div class="form-card settings-card" id="vehicleCard" style="display:none">
+    <div class="privacy-note"><b>Stays on this device.</b> These details are saved only in this browser's local storage — never uploaded or synced anywhere.</div>
+    <div class="field"><label for="driverName">Driver name</label><input id="driverName" type="text" placeholder="Full name" /></div>
+    <div class="field"><label for="bikeNumber">Bike / vehicle number</label><input id="bikeNumber" type="text" placeholder="e.g. TS09EF1234" style="text-transform:uppercase" /></div>
+    <div class="field"><label for="rcNumber">Driving License number</label><input id="rcNumber" type="text" placeholder="Driving License number" /></div>
+    <div class="field"><label for="aadharNumber">Aadhar number</label><input id="aadharNumber" type="text" inputmode="numeric" placeholder="XXXX XXXX XXXX" maxlength="14" /></div>
+    <button id="saveVehicleBtn" class="btn btn-primary">Save details</button>
+    <div id="vehicleMsg" class="form-msg"></div>
+  </div>
+
+  <button class="collapse-toggle" id="settingsToggle">Settings ▾</button>
+  <div class="form-card settings-card" id="settingsCard" style="display:none">
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Auto-fill morning reading</div>
+        <div class="setting-sub">Carries yesterday's evening odometer into today's morning field — still editable before saving.</div>
+      </div>
+      <label class="switch">
+        <input id="autoFillToggle" type="checkbox" checked />
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </label>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Manage bikes</div>
+        <div class="setting-sub">Rename or remove a bike profile. Each bike keeps its own history, fuel log, and service record.</div>
+      </div>
+    </div>
+    <div id="bikeManageList" style="margin-top:8px"></div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-title">Backup your data</div>
+        <div class="setting-sub">Data lives only on this device. Export a copy regularly, or restore from a previous export.</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button id="exportBtn" class="btn btn-secondary">Export backup</button>
+      <button id="importBtn" class="btn btn-secondary">Import backup</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" />
+    <div class="btn-row">
+      <button id="exportPdfBtn" class="btn btn-secondary">Export PDF summary</button>
+    </div>
+    <div id="settingsMsg" class="form-msg"></div>
+  </div>
+
+  <div class="section-title">History</div>
+  <div id="historyArea"><div class="empty-msg">No entries yet — your rides will show up here.</div></div>
+
+</div>
+
+<!-- Hidden print-only report, filled in just before printing -->
+<div id="printArea" style="display:none"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var LS_BIKES = "odo_bikes_v2";
+  var LS_ACTIVE = "odo_active_bike_v2";
+  var LS_SETTINGS = "odo_settings";
+  var DEFAULT_SETTINGS = { autoFillMorning: true, theme: "dark" };
+  var DEFAULT_SERVICE = { intervalKm: 3000, lastServiceOdo: null, lastServiceDate: "" };
+
+  function todayStr() {
+    var d = new Date();
+    var tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0, 10);
+  }
+  function fmtDate(dstr) {
+    if (!dstr) return "";
+    var d = new Date(dstr + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function fmtDateLong(dstr) {
+    if (!dstr) return "—";
+    var d = new Date(dstr + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+  function fmtTime(ms) {
+    if (ms == null) return "";
+    return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  function round1(n) { return Math.round(n * 10) / 10; }
+  function genId() { return "id_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
+
+  function loadJSON(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (raw == null) return fallback;
+      var parsed = JSON.parse(raw);
+      return parsed == null ? fallback : parsed;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  function saveJSON(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  }
+
+  // ---------- data + migration from the single-bike v1 version ----------
+  var bikes = loadJSON(LS_BIKES, null);
+  if (!bikes) {
+    var oldEntries = loadJSON("odo_entries", []);
+    var oldVehicle = loadJSON("odo_vehicle", {});
+    var migrated = {
+      id: genId(),
+      name: (oldVehicle && oldVehicle.bikeNumber) ? oldVehicle.bikeNumber : "My Bike",
+      driverName: (oldVehicle && oldVehicle.driverName) || "",
+      bikeNumber: (oldVehicle && oldVehicle.bikeNumber) || "",
+      rcNumber: (oldVehicle && oldVehicle.rcNumber) || "",
+      aadharNumber: (oldVehicle && oldVehicle.aadharNumber) || "",
+      entries: Array.isArray(oldEntries) ? oldEntries : [],
+      fuel: [],
+      service: Object.assign({}, DEFAULT_SERVICE),
+    };
+    bikes = [migrated];
+    saveJSON(LS_BIKES, bikes);
+  }
+
+  var activeBikeId = loadJSON(LS_ACTIVE, null);
+  if (!activeBikeId || !bikes.some(function (b) { return b.id === activeBikeId; })) {
+    activeBikeId = bikes[0].id;
+    saveJSON(LS_ACTIVE, activeBikeId);
+  }
+
+  var settings = Object.assign({}, DEFAULT_SETTINGS, loadJSON(LS_SETTINGS, {}));
+
+  function activeBike() {
+    var b = bikes.filter(function (x) { return x.id === activeBikeId; })[0];
+    if (!b) { b = bikes[0]; activeBikeId = b.id; }
+    if (!b.fuel) b.fuel = [];
+    if (!b.service) b.service = Object.assign({}, DEFAULT_SERVICE);
+    if (!b.routes) b.routes = {};
+    return b;
+  }
+  function persistBikes() { saveJSON(LS_BIKES, bikes); }
+  function persistSettings() { saveJSON(LS_SETTINGS, settings); }
+
+  var el = {};
+  ["dateInput","morningInput","eveningInput","autoBadge","saveBtn","formMsg",
+   "todayDisplay","lcdSince","statTotal","statWeek","statStreak","statMonth","statAvg","statDays",
+   "chartArea","historyArea","recordsGrid","serviceBanner",
+   "bikeSelect","addBikeBtn","themeToggle","headerSub",
+   "fuelToggle","fuelCard","fuelDate","fuelCost","saveFuelBtn","fuelMsg","fuelStats","fuelHistory",
+   "serviceToggle","serviceCard","serviceInterval","serviceLastOdo","serviceLastDate","saveServiceBtn","logServiceNowBtn","serviceMsg",
+   "vehicleToggle","vehicleCard","driverName","bikeNumber","rcNumber","aadharNumber","saveVehicleBtn","vehicleMsg",
+   "settingsToggle","settingsCard","autoFillToggle","bikeManageList","exportBtn","importBtn","importFile","exportPdfBtn","settingsMsg",
+   "printArea",
+   "gpsDistance","gpsTime","gpsNow","gpsToggleBtn","gpsStatus","rideMap","gpsSaveRow","gpsSaveBtn","routePickerWrap","routeDateSelect"
+  ].forEach(function (id) { el[id] = document.getElementById(id); });
+
+  var autoFilled = false;
+
+  // ---------- derived helpers ----------
+  function sortedEntries(bike) {
+    return bike.entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  }
+  function withDistance(bike) {
+    return sortedEntries(bike).map(function (e) {
+      var hasBoth = e.morning != null && e.evening != null;
+      var distance = hasBoth ? round1(e.evening - e.morning) : null;
+      var status = hasBoth ? "done" : (e.morning != null ? "riding" : "pending");
+      return Object.assign({}, e, { distance: distance, status: status });
+    });
+  }
+  function latestOdometer(bike) {
+    var max = null;
+    sortedEntries(bike).forEach(function (e) {
+      if (e.evening != null) max = max == null ? e.evening : Math.max(max, e.evening);
+      if (e.morning != null) max = max == null ? e.morning : Math.max(max, e.morning);
+    });
+    bike.fuel.forEach(function (f) {
+      if (f.odometer != null) max = max == null ? f.odometer : Math.max(max, f.odometer);
+    });
+    return max;
+  }
+
+  // ---------- main render ----------
+  function render() {
+    var bike = activeBike();
+    var today = todayStr();
+    var wd = withDistance(bike);
+    var todayEntry = wd.filter(function (e) { return e.date === today; })[0] || null;
+    var latest = latestOdometer(bike);
+
+    el.headerSub.textContent = bike.name || "Morning start · evening finish";
+    document.title = "Bike Distance Tracker — " + (bike.name || "");
+
+    if (todayEntry && todayEntry.distance != null) {
+      el.todayDisplay.style.fontSize = "";
+      el.todayDisplay.innerHTML = todayEntry.distance + '<span class="unit">km</span>';
+    } else if (todayEntry && todayEntry.status === "riding") {
+      el.todayDisplay.style.fontSize = "20px";
+      el.todayDisplay.innerHTML = 'Riding…<span class="unit">add evening reading</span>';
+    } else {
+      el.todayDisplay.style.fontSize = "20px";
+      el.todayDisplay.innerHTML = 'Not started<span class="unit">log a morning reading</span>';
+    }
+    el.lcdSince.textContent = latest != null ? ("latest odometer: " + latest + " km") : "no readings logged yet";
+
+    var completed = wd.filter(function (e) { return e.distance != null; });
+    var total = round1(completed.reduce(function (s, e) { return s + e.distance; }, 0));
+    var avg = completed.length ? round1(total / completed.length) : 0;
+
+    var now = new Date(today + "T00:00:00");
+    var week = 0, month = 0, year = 0;
+    completed.forEach(function (e) {
+      var d = new Date(e.date + "T00:00:00");
+      var diffDays = Math.round((now - d) / 86400000);
+      if (diffDays >= 0 && diffDays < 7) week += e.distance;
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) month += e.distance;
+      if (d.getFullYear() === now.getFullYear()) year += e.distance;
+    });
+
+    var dateSet = {};
+    completed.forEach(function (e) { dateSet[e.date] = true; });
+    var streak = 0, bestStreak = 0, run = 0, prevDate = null;
+    sortedEntries(bike).forEach(function (e) {
+      if (e.morning != null && e.evening != null) {
+        if (prevDate) {
+          var gap = Math.round((new Date(e.date + "T00:00:00") - new Date(prevDate + "T00:00:00")) / 86400000);
+          run = gap === 1 ? run + 1 : 1;
+        } else { run = 1; }
+        bestStreak = Math.max(bestStreak, run);
+        prevDate = e.date;
+      }
+    });
+    if (completed.length) {
+      var cursorDate = dateSet[today] ? today : completed[completed.length - 1].date;
+      var d2 = new Date(cursorDate + "T00:00:00");
+      while (dateSet[d2.toISOString().slice(0, 10)]) { streak++; d2.setDate(d2.getDate() - 1); }
+    }
+
+    el.statTotal.textContent = total;
+    el.statWeek.textContent = round1(week);
+    el.statStreak.textContent = streak;
+    el.statMonth.textContent = round1(month);
+    el.statAvg.textContent = avg;
+    el.statDays.textContent = completed.length;
+
+    // personal records
+    var bestDay = completed.reduce(function (best, e) { return (!best || e.distance > best.distance) ? e : best; }, null);
+    var recordsHtml =
+      '<div class="record-card"><div class="v mono">' + (bestDay ? bestDay.distance : "—") + '</div><div class="l">Longest day</div><div class="d">' + (bestDay ? fmtDate(bestDay.date) : "") + '</div></div>' +
+      '<div class="record-card"><div class="v mono">' + bestStreak + '</div><div class="l">Longest streak</div><div class="d">days in a row</div></div>' +
+      '<div class="record-card"><div class="v mono">' + round1(year) + '</div><div class="l">This year</div><div class="d">' + now.getFullYear() + '</div></div>' +
+      '<div class="record-card"><div class="v mono">' + total + '</div><div class="l">Lifetime total</div><div class="d">since ' + (wd[0] ? fmtDate(wd[0].date) : "—") + '</div></div>';
+    el.recordsGrid.innerHTML = recordsHtml;
+
+    // chart
+    var chartData = completed.slice(-14);
+    if (chartData.length === 0) {
+      el.chartArea.innerHTML = '<div class="chart-empty">Log both readings to see your first bar.</div>';
+    } else {
+      var maxDelta = Math.max(1, Math.max.apply(null, chartData.map(function (e) { return Math.max(0, e.distance); })));
+      el.chartArea.innerHTML = '<div class="bars">' + chartData.map(function (e) {
+        var h = Math.max(2, (Math.max(0, e.distance) / maxDelta) * 100);
+        return '<div class="bar-col"><div class="bar" style="height:' + h + '%" title="' + e.distance + ' km"></div>' +
+          '<div class="bar-label">' + fmtDate(e.date).replace(" ", "") + '</div></div>';
+      }).join("") + '</div>';
+    }
+
+    // history
+    if (wd.length === 0) {
+      el.historyArea.innerHTML = '<div class="empty-msg">No entries yet — your rides will show up here.</div>';
+    } else {
+      var rows = wd.slice().reverse().map(function (e) {
+        var readingText = (e.morning != null ? (e.morning + " km start") : "no start") + " · " + (e.evening != null ? (e.evening + " km end") : "no end");
+        var deltaText = e.status === "done" ? ((e.distance > 0 ? "+" : "") + e.distance) : e.status === "riding" ? "…" : "—";
+        return '<div class="h-row" data-date="' + e.date + '">' +
+          '<div><div class="h-date">' + fmtDate(e.date) + '</div><div class="h-reading mono">' + readingText + '</div></div>' +
+          '<div class="h-right"><div class="h-delta mono">' + deltaText + '</div>' +
+          '<button class="h-del" data-del="' + e.date + '" aria-label="Delete entry">✕</button></div></div>';
+      }).join("");
+      el.historyArea.innerHTML = '<div class="history-list">' + rows + '</div>';
+      Array.prototype.forEach.call(el.historyArea.querySelectorAll("[data-del]"), function (btn) {
+        btn.addEventListener("click", function () { handleDelete(btn.getAttribute("data-del")); });
+      });
+    }
+
+    renderFuel(bike, latest);
+    renderService(bike, latest);
+    renderBikeSelect();
+    renderBikeManageList();
+    renderRoutePicker(bike);
+  }
+
+  // ---------- morning/evening form ----------
+  function refillForm() {
+    var bike = activeBike();
+    var date = el.dateInput.value;
+    var existing = bike.entries.filter(function (e) { return e.date === date; })[0];
+
+    if (existing && existing.morning != null) {
+      el.morningInput.value = existing.morning;
+      autoFilled = false;
+    } else if (settings.autoFillMorning) {
+      var prior = sortedEntries(bike).slice().reverse().filter(function (e) { return e.date < date && e.evening != null; })[0];
+      if (prior) { el.morningInput.value = prior.evening; autoFilled = true; }
+      else { el.morningInput.value = ""; autoFilled = false; }
+    } else {
+      el.morningInput.value = "";
+      autoFilled = false;
+    }
+    el.eveningInput.value = existing && existing.evening != null ? existing.evening : "";
+    el.autoBadge.style.display = autoFilled ? "" : "none";
+  }
+
+  function handleSave() {
+    el.formMsg.textContent = ""; el.formMsg.className = "form-msg";
+    var bike = activeBike();
+    var date = el.dateInput.value;
+    if (!date) { el.formMsg.textContent = "Pick a date."; el.formMsg.className = "form-msg err"; return; }
+
+    var mRaw = el.morningInput.value.trim();
+    var eRaw = el.eveningInput.value.trim();
+    var m = mRaw === "" ? null : parseFloat(mRaw);
+    var ev = eRaw === "" ? null : parseFloat(eRaw);
+
+    if (m == null && ev == null) { el.formMsg.textContent = "Enter at least one reading."; el.formMsg.className = "form-msg err"; return; }
+    if (m != null && isNaN(m)) { el.formMsg.textContent = "Morning reading isn't a valid number."; el.formMsg.className = "form-msg err"; return; }
+    if (ev != null && isNaN(ev)) { el.formMsg.textContent = "Evening reading isn't a valid number."; el.formMsg.className = "form-msg err"; return; }
+    if (m != null && ev != null && ev < m) { el.formMsg.textContent = "Evening reading is lower than morning — check the numbers."; el.formMsg.className = "form-msg err"; return; }
+
+    var idx = -1;
+    for (var i = 0; i < bike.entries.length; i++) { if (bike.entries[i].date === date) { idx = i; break; } }
+    var updated = { date: date, morning: m, evening: ev };
+    if (idx >= 0) {
+      updated.morning = m != null ? m : bike.entries[idx].morning;
+      updated.evening = ev != null ? ev : bike.entries[idx].evening;
+      bike.entries[idx] = updated;
+    } else {
+      bike.entries.push(updated);
+    }
+    persistBikes();
+
+    var both = updated.morning != null && updated.evening != null;
+    el.formMsg.textContent = both ? ("Saved — " + round1(updated.evening - updated.morning) + " km today.") : "Saved. Add the other reading when you're done riding.";
+    el.formMsg.className = "form-msg ok";
+    el.eveningInput.value = updated.evening != null ? updated.evening : "";
+    render();
+  }
+
+  function handleDelete(date) {
+    var bike = activeBike();
+    bike.entries = bike.entries.filter(function (e) { return e.date !== date; });
+    persistBikes();
+    render();
+    refillForm();
+  }
+
+  // ---------- fuel cost ----------
+  function renderFuel(bike, latest) {
+    var logs = bike.fuel.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    var totalCost = logs.reduce(function (s, f) { return s + (f.cost || 0); }, 0);
+
+    var now = new Date(todayStr() + "T00:00:00");
+    var monthCost = logs.reduce(function (s, f) {
+      var d = new Date(f.date + "T00:00:00");
+      return (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) ? s + (f.cost || 0) : s;
+    }, 0);
+
+    el.fuelStats.innerHTML =
+      '<div class="stat-card"><div class="v mono">₹' + Math.round(totalCost) + '</div><div class="l">Total spent</div></div>' +
+      '<div class="stat-card"><div class="v mono">₹' + Math.round(monthCost) + '</div><div class="l">This month</div></div>' +
+      '<div class="stat-card"><div class="v mono">' + logs.length + '</div><div class="l">Entries</div></div>';
+
+    if (logs.length === 0) {
+      el.fuelHistory.innerHTML = '<div class="empty-msg">No fuel entries yet.</div>';
+    } else {
+      el.fuelHistory.innerHTML = '<div class="history-list">' + logs.slice().reverse().map(function (f) {
+        return '<div class="h-row"><div><div class="h-date">' + fmtDate(f.date) + '</div></div>' +
+          '<div class="h-right"><div class="h-delta mono">₹' + f.cost + '</div>' +
+          '<button class="h-del" data-delfuel="' + f.id + '" aria-label="Delete">✕</button></div></div>';
+      }).join("") + '</div>';
+      Array.prototype.forEach.call(el.fuelHistory.querySelectorAll("[data-delfuel]"), function (btn) {
+        btn.addEventListener("click", function () {
+          var bike2 = activeBike();
+          bike2.fuel = bike2.fuel.filter(function (f) { return f.id !== btn.getAttribute("data-delfuel"); });
+          persistBikes(); render();
+        });
+      });
+    }
+
+    if (!el.fuelDate.value) el.fuelDate.value = todayStr();
+  }
+
+  function handleSaveFuel() {
+    el.fuelMsg.textContent = ""; el.fuelMsg.className = "form-msg";
+    var date = el.fuelDate.value || todayStr();
+    var cost = parseFloat(el.fuelCost.value);
+    if (isNaN(cost) || cost <= 0) {
+      el.fuelMsg.textContent = "Enter a valid cost.";
+      el.fuelMsg.className = "form-msg err";
+      return;
+    }
+    var bike = activeBike();
+    bike.fuel.push({ id: genId(), date: date, cost: round1(cost) });
+    persistBikes();
+    el.fuelCost.value = "";
+    el.fuelMsg.textContent = "Fuel entry added.";
+    el.fuelMsg.className = "form-msg ok";
+    render();
+  }
+
+  // ---------- service reminders ----------
+  function renderService(bike, latest) {
+    var svc = bike.service || DEFAULT_SERVICE;
+    el.serviceInterval.value = svc.intervalKm || "";
+    el.serviceLastOdo.value = svc.lastServiceOdo != null ? svc.lastServiceOdo : "";
+    el.serviceLastDate.value = svc.lastServiceDate || "";
+
+    if (!svc.intervalKm || svc.lastServiceOdo == null || latest == null) {
+      el.serviceBanner.innerHTML = "";
+      return;
+    }
+    var dueAt = svc.lastServiceOdo + svc.intervalKm;
+    var remaining = round1(dueAt - latest);
+    var pillClass = "badge-ok", label = remaining + " km until next service";
+    if (remaining <= 0) { pillClass = "badge-due"; label = "Service overdue by " + Math.abs(remaining) + " km"; }
+    else if (remaining <= svc.intervalKm * 0.1) { pillClass = "badge-warn"; label = "Service due soon — " + remaining + " km left"; }
+
+    el.serviceBanner.innerHTML =
+      '<div class="form-card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">' +
+      '<div><div style="font-size:12px;font-weight:600">Next service</div>' +
+      '<div style="font-size:10.5px;color:var(--text-dim);margin-top:2px">last serviced at ' + svc.lastServiceOdo + ' km' + (svc.lastServiceDate ? (" · " + fmtDate(svc.lastServiceDate)) : "") + '</div></div>' +
+      '<span class="badge-pill ' + pillClass + '">' + label + '</span></div>';
+  }
+
+  function handleSaveService() {
+    el.serviceMsg.textContent = ""; el.serviceMsg.className = "form-msg";
+    var bike = activeBike();
+    var interval = parseFloat(el.serviceInterval.value);
+    var lastOdo = el.serviceLastOdo.value.trim() === "" ? null : parseFloat(el.serviceLastOdo.value);
+    bike.service = {
+      intervalKm: isNaN(interval) ? 3000 : interval,
+      lastServiceOdo: (lastOdo != null && !isNaN(lastOdo)) ? lastOdo : null,
+      lastServiceDate: el.serviceLastDate.value || "",
+    };
+    persistBikes();
+    el.serviceMsg.textContent = "Saved."; el.serviceMsg.className = "form-msg ok";
+    render();
+  }
+
+  function handleLogServiceNow() {
+    var bike = activeBike();
+    var latest = latestOdometer(bike);
+    if (latest == null) {
+      el.serviceMsg.textContent = "Log an odometer reading first.";
+      el.serviceMsg.className = "form-msg err";
+      return;
+    }
+    bike.service = bike.service || Object.assign({}, DEFAULT_SERVICE);
+    bike.service.lastServiceOdo = latest;
+    bike.service.lastServiceDate = todayStr();
+    persistBikes();
+    el.serviceMsg.textContent = "Logged service at " + latest + " km.";
+    el.serviceMsg.className = "form-msg ok";
+    render();
+  }
+
+  // ---------- vehicle & driver details ----------
+  function refillVehicleForm() {
+    var bike = activeBike();
+    el.driverName.value = bike.driverName || "";
+    el.bikeNumber.value = bike.bikeNumber || "";
+    el.rcNumber.value = bike.rcNumber || "";
+    el.aadharNumber.value = bike.aadharNumber || "";
+  }
+  function handleSaveVehicle() {
+    var bike = activeBike();
+    bike.driverName = el.driverName.value.trim();
+    bike.bikeNumber = el.bikeNumber.value.trim();
+    bike.rcNumber = el.rcNumber.value.trim();
+    bike.aadharNumber = el.aadharNumber.value.trim();
+    if (bike.bikeNumber && (!bike.name || bike.name === "My Bike")) bike.name = bike.bikeNumber;
+    persistBikes();
+    el.vehicleMsg.textContent = "Saved."; el.vehicleMsg.className = "form-msg ok";
+    render();
+  }
+
+  // ---------- multi-bike management ----------
+  function renderBikeSelect() {
+    el.bikeSelect.innerHTML = bikes.map(function (b) {
+      return '<option value="' + b.id + '"' + (b.id === activeBikeId ? " selected" : "") + '>' + (b.name || "Unnamed bike") + '</option>';
+    }).join("");
+  }
+  function renderBikeManageList() {
+    el.bikeManageList.innerHTML = bikes.map(function (b) {
+      return '<div class="bike-manage-row"><div class="bike-manage-name">' + (b.name || "Unnamed bike") + (b.id === activeBikeId ? " (active)" : "") + '</div>' +
+        '<div class="bike-manage-actions">' +
+        '<button class="mini-btn" data-rename="' + b.id + '">Rename</button>' +
+        (bikes.length > 1 ? '<button class="mini-btn danger" data-delbike="' + b.id + '">Delete</button>' : '') +
+        '</div></div>';
+    }).join("");
+    Array.prototype.forEach.call(el.bikeManageList.querySelectorAll("[data-rename]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-rename");
+        var b = bikes.filter(function (x) { return x.id === id; })[0];
+        var name = prompt("Rename bike:", b.name || "");
+        if (name && name.trim()) { b.name = name.trim(); persistBikes(); render(); }
+      });
+    });
+    Array.prototype.forEach.call(el.bikeManageList.querySelectorAll("[data-delbike]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-delbike");
+        if (!confirm("Delete this bike and all its data? This can't be undone.")) return;
+        bikes = bikes.filter(function (x) { return x.id !== id; });
+        if (activeBikeId === id) activeBikeId = bikes[0].id;
+        persistBikes(); saveJSON(LS_ACTIVE, activeBikeId);
+        render(); refillForm(); refillVehicleForm();
+      });
+    });
+  }
+  function handleAddBike() {
+    var name = prompt("Name this bike (e.g. plate number):", "");
+    if (!name || !name.trim()) return;
+    var b = { id: genId(), name: name.trim(), driverName: "", bikeNumber: "", rcNumber: "", aadharNumber: "", entries: [], fuel: [], service: Object.assign({}, DEFAULT_SERVICE) };
+    bikes.push(b);
+    activeBikeId = b.id;
+    persistBikes(); saveJSON(LS_ACTIVE, activeBikeId);
+    render(); refillForm(); refillVehicleForm();
+  }
+  function handleSwitchBike() {
+    activeBikeId = el.bikeSelect.value;
+    saveJSON(LS_ACTIVE, activeBikeId);
+    render(); refillForm(); refillVehicleForm();
+  }
+
+  // ---------- theme ----------
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", settings.theme);
+    el.themeToggle.textContent = settings.theme === "light" ? "☀️" : "🌙";
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", settings.theme === "light" ? "#f4f1e9" : "#12160f");
+  }
+  function handleToggleTheme() {
+    settings.theme = settings.theme === "light" ? "dark" : "light";
+    persistSettings();
+    applyTheme();
+  }
+
+  // ---------- backup export/import ----------
+  function handleExport() {
+    var payload = { bikes: bikes, settings: settings, exportedAt: new Date().toISOString(), version: 2 };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "bike-tracker-backup-" + todayStr() + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    el.settingsMsg.textContent = "Backup downloaded."; el.settingsMsg.className = "form-msg ok";
+  }
+  function handleImportFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (data && Array.isArray(data.bikes)) {
+          bikes = data.bikes.map(function (b) {
+            return Object.assign({ fuel: [], service: Object.assign({}, DEFAULT_SERVICE) }, b);
+          });
+          settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+        } else if (data && Array.isArray(data.entries)) {
+          bikes = [{
+            id: genId(), name: (data.vehicle && data.vehicle.bikeNumber) || "My Bike",
+            driverName: (data.vehicle && data.vehicle.driverName) || "",
+            bikeNumber: (data.vehicle && data.vehicle.bikeNumber) || "",
+            rcNumber: (data.vehicle && data.vehicle.rcNumber) || "",
+            aadharNumber: (data.vehicle && data.vehicle.aadharNumber) || "",
+            entries: data.entries, fuel: [], service: Object.assign({}, DEFAULT_SERVICE),
+          }];
+          settings = Object.assign({}, DEFAULT_SETTINGS, data.settings || {});
+        } else { throw new Error("bad format"); }
+
+        activeBikeId = bikes[0].id;
+        persistBikes(); persistSettings(); saveJSON(LS_ACTIVE, activeBikeId);
+        applyTheme(); render(); refillForm(); refillVehicleForm();
+        el.settingsMsg.textContent = "Backup restored."; el.settingsMsg.className = "form-msg ok";
+      } catch (e) {
+        el.settingsMsg.textContent = "That file doesn't look like a valid backup.";
+        el.settingsMsg.className = "form-msg err";
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---------- PDF export (browser print) ----------
+  function handleExportPdf() {
+    var bike = activeBike();
+    var wd = withDistance(bike);
+    var completed = wd.filter(function (e) { return e.distance != null; });
+    var total = round1(completed.reduce(function (s, e) { return s + e.distance; }, 0));
+    var rowsHtml = wd.slice().reverse().slice(0, 60).map(function (e) {
+      return "<tr><td>" + fmtDate(e.date) + "</td><td>" + (e.morning != null ? e.morning : "—") + "</td><td>" + (e.evening != null ? e.evening : "—") + "</td><td>" + (e.distance != null ? e.distance : "—") + "</td></tr>";
+    }).join("");
+
+    el.printArea.innerHTML =
+      "<h1 style='font-family:sans-serif'>Bike Distance Tracker — Summary</h1>" +
+      "<p style='font-family:sans-serif'><b>Bike:</b> " + (bike.name || "—") + " &nbsp; <b>Driver:</b> " + (bike.driverName || "—") + "</p>" +
+      "<p style='font-family:sans-serif'><b>Bike No:</b> " + (bike.bikeNumber || "—") + " &nbsp; <b>RC No:</b> " + (bike.rcNumber || "—") + "</p>" +
+      "<p style='font-family:sans-serif'><b>Total distance logged:</b> " + total + " km &nbsp; <b>Rides logged:</b> " + completed.length + "</p>" +
+      "<p style='font-family:sans-serif;color:#555'>Generated " + fmtDateLong(todayStr()) + "</p>" +
+      "<table style='width:100%;border-collapse:collapse;font-family:sans-serif;font-size:13px' border='1' cellpadding='6'>" +
+      "<thead><tr><th>Date</th><th>Morning (km)</th><th>Evening (km)</th><th>Distance (km)</th></tr></thead><tbody>" + rowsHtml + "</tbody></table>";
+    el.printArea.style.display = "block";
+    window.print();
+    setTimeout(function () { el.printArea.style.display = "none"; }, 500);
+  }
+
+  // ---------- GPS ride tracking ----------
+  var gpsWatchId = null;
+  var gpsPoints = []; // {lat, lng, t}
+  var gpsDistanceKm = 0;
+  var gpsStartTime = null;
+  var gpsTimerInterval = null;
+  var gpsMap = null;
+  var gpsPolyline = null;
+  var gpsMarker = null;
+  var routePointMarkers = [];
+  var wakeLock = null;
+  var lastSavedGpsDistance = 0;
+
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function ensureMap() {
+    if (gpsMap || typeof L === "undefined") return;
+    el.rideMap.style.display = "block";
+    gpsMap = L.map("rideMap", { zoomControl: false, attributionControl: true }).setView([20.5937, 78.9629], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(gpsMap);
+    gpsPolyline = L.polyline([], { color: "#f5a742", weight: 4 }).addTo(gpsMap);
+  }
+
+  function updateGpsTimer() {
+    if (!gpsStartTime) return;
+    var secs = Math.floor((Date.now() - gpsStartTime) / 1000);
+    var mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    var ss = String(secs % 60).padStart(2, "0");
+    el.gpsTime.textContent = mm + ":" + ss;
+    el.gpsNow.textContent = fmtTime(Date.now());
+  }
+
+  function handleGpsPosition(pos) {
+    var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
+    if (acc != null && acc > 40) return; // ignore low-accuracy noise
+
+    ensureMap();
+    var point = { lat: lat, lng: lng, t: Date.now() };
+
+    var accepted = false;
+    if (gpsPoints.length > 0) {
+      var last = gpsPoints[gpsPoints.length - 1];
+      var segKm = haversineKm(last.lat, last.lng, lat, lng);
+      var elapsedH = (point.t - last.t) / 3600000;
+      var speedKmh = elapsedH > 0 ? segKm / elapsedH : 0;
+      // ignore GPS jumps that imply an unrealistic speed (signal glitch)
+      if (segKm > 0.005 && speedKmh < 150) {
+        gpsDistanceKm += segKm;
+        gpsPoints.push(point);
+        accepted = true;
+      }
+    } else {
+      gpsPoints.push(point);
+      accepted = true;
+    }
+
+    el.gpsDistance.textContent = round1(gpsDistanceKm);
+    if (gpsMap) {
+      var latlngs = gpsPoints.map(function (p) { return [p.lat, p.lng]; });
+      gpsPolyline.setLatLngs(latlngs);
+      if (!gpsMarker) gpsMarker = L.circleMarker([lat, lng], { radius: 6, color: "#9de88a" }).addTo(gpsMap);
+      else gpsMarker.setLatLng([lat, lng]);
+      gpsMap.setView([lat, lng], gpsMap.getZoom() < 14 ? 16 : gpsMap.getZoom());
+
+      if (accepted) {
+        var isFirst = gpsPoints.length === 1;
+        var dotColor = isFirst ? "#9de88a" : "#f5a742";
+        var dot = L.circleMarker([lat, lng], { radius: 4, color: dotColor, fillColor: dotColor, fillOpacity: 0.9, weight: 1 }).addTo(gpsMap);
+        dot.bindPopup(fmtTime(point.t));
+        routePointMarkers.push(dot);
+      }
+    }
+  }
+
+  function handleGpsError(err) {
+    el.gpsStatus.textContent = "GPS error: " + (err && err.message ? err.message : "couldn't get your location") + ". Check location permission for this site.";
+    el.gpsStatus.className = "gps-status warn";
+  }
+
+  function startRide() {
+    if (!("geolocation" in navigator)) {
+      el.gpsStatus.textContent = "This browser doesn't support GPS tracking.";
+      el.gpsStatus.className = "gps-status warn";
+      return;
+    }
+    if (!window.isSecureContext) {
+      el.gpsStatus.textContent = "GPS tracking needs HTTPS. This works once deployed on GitHub Pages.";
+      el.gpsStatus.className = "gps-status warn";
+      return;
+    }
+    gpsPoints = [];
+    gpsDistanceKm = 0;
+    gpsStartTime = Date.now();
+    el.gpsDistance.textContent = "0.0";
+    el.gpsTime.textContent = "00:00";
+    el.gpsNow.textContent = fmtTime(Date.now());
+    el.gpsStatus.textContent = "Tracking… keep this tab open and your screen on.";
+    el.gpsStatus.className = "gps-status";
+    el.gpsSaveRow.style.display = "none";
+    el.gpsToggleBtn.textContent = "Stop ride";
+
+    if (gpsMap) {
+      routePointMarkers.forEach(function (m) { gpsMap.removeLayer(m); });
+      routePointMarkers = [];
+      gpsPolyline.setLatLngs([]);
+      if (gpsMarker) { gpsMap.removeLayer(gpsMarker); gpsMarker = null; }
+    }
+
+    if ("wakeLock" in navigator) {
+      navigator.wakeLock.request("screen").then(function (lock) { wakeLock = lock; }).catch(function () {});
+    }
+
+    gpsWatchId = navigator.geolocation.watchPosition(handleGpsPosition, handleGpsError, {
+      enableHighAccuracy: true, maximumAge: 0, timeout: 15000,
+    });
+    gpsTimerInterval = setInterval(updateGpsTimer, 1000);
+  }
+
+  function stopRide() {
+    if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+    if (gpsTimerInterval) { clearInterval(gpsTimerInterval); gpsTimerInterval = null; }
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+    el.gpsToggleBtn.textContent = "Start ride";
+
+    if (gpsPoints.length > 1 && gpsDistanceKm > 0) {
+      var bike = activeBike();
+      var date = todayStr();
+      var existing = bike.routes[date] || [];
+      bike.routes[date] = existing.concat(gpsPoints.map(function (p) { return [round6(p.lat), round6(p.lng), p.t]; }));
+      persistBikes();
+      lastSavedGpsDistance = round1(gpsDistanceKm);
+      el.gpsSaveRow.style.display = "";
+      render();
+      el.routeDateSelect.value = date;
+      handleViewRoute();
+    } else {
+      el.gpsStatus.textContent = "Not enough GPS data was recorded to save this ride.";
+      render();
+    }
+  }
+
+  function round6(n) { return Math.round(n * 1e6) / 1e6; }
+
+  function handleGpsToggle() {
+    if (gpsWatchId == null) startRide(); else stopRide();
+  }
+
+  function handleGpsSaveToEntry() {
+    var m = parseFloat(el.morningInput.value);
+    if (isNaN(m)) {
+      el.gpsStatus.textContent = "Enter today's morning reading first, then tap this again.";
+      el.gpsStatus.className = "gps-status warn";
+      return;
+    }
+    el.eveningInput.value = round1(m + lastSavedGpsDistance);
+    el.gpsStatus.textContent = "Evening reading filled in below — review and tap Save.";
+    el.gpsSaveRow.style.display = "none";
+    document.getElementById("saveBtn").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function routeDistanceKm(pts) {
+    var total = 0;
+    for (var i = 1; i < pts.length; i++) {
+      total += haversineKm(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+    }
+    return total;
+  }
+
+  function renderRoutePicker(bike) {
+    var dates = Object.keys(bike.routes || {}).sort().reverse();
+    if (dates.length === 0) {
+      el.routePickerWrap.style.display = "none";
+      return;
+    }
+    el.routePickerWrap.style.display = "";
+    el.routeDateSelect.innerHTML = '<option value="">Select a date…</option>' +
+      dates.map(function (d) {
+        var pts = bike.routes[d];
+        var distKm = round1(routeDistanceKm(pts));
+        var times = pts.map(function (p) { return p[2]; }).filter(function (t) { return t != null; });
+        var label = fmtDate(d);
+        if (times.length) label += " · " + fmtTime(Math.min.apply(null, times)) + "–" + fmtTime(Math.max.apply(null, times));
+        label += " · " + distKm + " km";
+        return '<option value="' + d + '">' + label + '</option>';
+      }).join("");
+  }
+
+  function handleViewRoute() {
+    var date = el.routeDateSelect.value;
+    if (!date) return;
+    var bike = activeBike();
+    var pts = bike.routes[date];
+    if (!pts || pts.length === 0) return;
+    ensureMap();
+    var latlngs = pts.map(function (p) { return [p[0], p[1]]; });
+    gpsPolyline.setLatLngs(latlngs);
+    if (gpsMarker) { gpsMap.removeLayer(gpsMarker); gpsMarker = null; }
+
+    routePointMarkers.forEach(function (m) { gpsMap.removeLayer(m); });
+    routePointMarkers = pts.map(function (p, i) {
+      var color = i === 0 ? "#9de88a" : (i === pts.length - 1 ? "#e2604f" : "#f5a742");
+      var marker = L.circleMarker([p[0], p[1]], { radius: 4, color: color, fillColor: color, fillOpacity: 0.9, weight: 1 }).addTo(gpsMap);
+      if (p[2] != null) marker.bindPopup(fmtTime(p[2]));
+      return marker;
+    });
+
+    gpsMap.fitBounds(gpsPolyline.getBounds(), { padding: [20, 20] });
+
+    var distKm = round1(routeDistanceKm(pts));
+    var times = pts.map(function (p) { return p[2]; }).filter(function (t) { return t != null; });
+    var timeRange = times.length ? (" · " + fmtTime(Math.min.apply(null, times)) + " – " + fmtTime(Math.max.apply(null, times))) : "";
+    el.gpsStatus.textContent = "Showing route from " + fmtDate(date) + timeRange + " · " + distKm + " km. Tap any point for its time.";
+  }
+
+
+  // ---------- wire up ----------
+  el.dateInput.value = todayStr();
+  el.dateInput.max = todayStr();
+  el.dateInput.addEventListener("change", refillForm);
+  el.morningInput.addEventListener("input", function () { autoFilled = false; el.autoBadge.style.display = "none"; });
+  el.saveBtn.addEventListener("click", handleSave);
+
+  el.saveVehicleBtn.addEventListener("click", handleSaveVehicle);
+  el.vehicleToggle.addEventListener("click", function () {
+    var open = el.vehicleCard.style.display !== "none";
+    el.vehicleCard.style.display = open ? "none" : "";
+    el.vehicleToggle.textContent = "Vehicle & Driver Details " + (open ? "▾" : "▴");
+  });
+
+  el.fuelToggle.addEventListener("click", function () {
+    var open = el.fuelCard.style.display !== "none";
+    el.fuelCard.style.display = open ? "none" : "";
+    el.fuelToggle.textContent = "Fuel & Mileage " + (open ? "▾" : "▴");
+  });
+  el.saveFuelBtn.addEventListener("click", handleSaveFuel);
+
+  el.serviceToggle.addEventListener("click", function () {
+    var open = el.serviceCard.style.display !== "none";
+    el.serviceCard.style.display = open ? "none" : "";
+    el.serviceToggle.textContent = "Service Reminder " + (open ? "▾" : "▴");
+  });
+  el.saveServiceBtn.addEventListener("click", handleSaveService);
+  el.logServiceNowBtn.addEventListener("click", handleLogServiceNow);
+
+  el.autoFillToggle.checked = !!settings.autoFillMorning;
+  el.autoFillToggle.addEventListener("change", function () {
+    settings.autoFillMorning = el.autoFillToggle.checked;
+    persistSettings();
+    refillForm();
+  });
+  el.settingsToggle.addEventListener("click", function () {
+    var open = el.settingsCard.style.display !== "none";
+    el.settingsCard.style.display = open ? "none" : "";
+    el.settingsToggle.textContent = "Settings " + (open ? "▾" : "▴");
+  });
+  el.exportBtn.addEventListener("click", handleExport);
+  el.importBtn.addEventListener("click", function () { el.importFile.click(); });
+  el.importFile.addEventListener("change", function () {
+    if (el.importFile.files && el.importFile.files[0]) handleImportFile(el.importFile.files[0]);
+    el.importFile.value = "";
+  });
+  el.exportPdfBtn.addEventListener("click", handleExportPdf);
+
+  el.bikeSelect.addEventListener("change", handleSwitchBike);
+  el.addBikeBtn.addEventListener("click", handleAddBike);
+  el.themeToggle.addEventListener("click", handleToggleTheme);
+
+  el.gpsToggleBtn.addEventListener("click", handleGpsToggle);
+  el.gpsSaveBtn.addEventListener("click", handleGpsSaveToEntry);
+  el.routeDateSelect.addEventListener("change", handleViewRoute);
+
+  applyTheme();
+  render();
+  refillForm();
+  refillVehicleForm();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+  }
+})();
+</script>
+</body>
+</html>
